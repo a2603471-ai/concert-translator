@@ -149,7 +149,7 @@
     <!-- AI 分句 toggle -->
     <div class="toggle-row">
       <div class="toggle-left">
-        <div class="toggle-title">AI 分句模式</div>
+        <div class="toggle-title">AI 分句模式（進階）</div>
         <div class="toggle-desc" id="aiSegmentDesc">關閉：即時顯示每個字幕片段</div>
       </div>
       <label class="switch">
@@ -177,6 +177,16 @@
           <option value="true">開啟（降低背景噪音）</option>
         </select>
       </div>
+    </div>
+
+    <div>
+      <label>字幕保留時間</label>
+      <select id="captionHold">
+        <option value="8">8 秒</option>
+        <option value="12" selected>12 秒（建議）</option>
+        <option value="20">20 秒</option>
+        <option value="30">30 秒</option>
+      </select>
     </div>
 
     <div class="toggle-row">
@@ -257,6 +267,7 @@ const RATE_AUDIO_PER_MIN_USD = 0.0368;
 const USD_TWD = 32;
 const STABLE_FLUSH_MS = 1600;
 const PUNCT_FLUSH_MS = 700;
+const CAPTION_HISTORY_VERSION = '2';
 
 let liveSession   = null;
 let audioContext  = null;
@@ -280,21 +291,32 @@ let silentChunkCount = 0;
 let lastAudioLevel  = 0;
 let lastInputAt     = 0;
 let lastOutputAt    = 0;
+let captionHoldMs   = 12000;
+let prevOriginalTimer = null;
+let prevTranslatedTimer = null;
+let lastImmediateOriginal = '';
+let lastImmediateTranslated = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────
 window.onload = () => {
   const savedKey    = localStorage.getItem('gemini_key');
   const savedPrompt = localStorage.getItem('sys_prompt');
+  if (localStorage.getItem('caption_history_version') !== CAPTION_HISTORY_VERSION) {
+    localStorage.setItem('ai_segment', 'false');
+    localStorage.setItem('caption_history_version', CAPTION_HISTORY_VERSION);
+  }
   const savedSeg    = localStorage.getItem('ai_segment') === 'true';
   const savedNoise  = localStorage.getItem('noise_suppression');
   const savedDebug  = localStorage.getItem('debug_mode') === 'true';
   const savedLimit  = localStorage.getItem('cost_limit_twd');
+  const savedHold   = localStorage.getItem('caption_hold_sec');
 
   if (savedKey)    document.getElementById('apiKey').value = savedKey;
   document.getElementById('sysPrompt').value = savedPrompt ?? DEFAULT_SYS_PROMPT;
   document.getElementById('aiSegment').checked = savedSeg;
   if (savedNoise != null) document.getElementById('noiseSuppression').value = savedNoise;
   if (savedLimit != null) document.getElementById('costLimit').value = savedLimit;
+  if (savedHold != null) document.getElementById('captionHold').value = savedHold;
   document.getElementById('debugMode').checked = savedDebug;
   refreshDebugVisibility();
   refreshSegDesc();
@@ -312,6 +334,8 @@ document.getElementById('noiseSuppression').addEventListener('change', e =>
   localStorage.setItem('noise_suppression', e.target.value));
 document.getElementById('costLimit').addEventListener('change', e =>
   localStorage.setItem('cost_limit_twd', e.target.value));
+document.getElementById('captionHold').addEventListener('change', e =>
+  localStorage.setItem('caption_hold_sec', e.target.value));
 document.getElementById('debugMode').addEventListener('change', () => {
   localStorage.setItem('debug_mode', document.getElementById('debugMode').checked);
   refreshDebugVisibility();
@@ -322,7 +346,7 @@ function refreshSegDesc() {
   const on = document.getElementById('aiSegment').checked;
   document.getElementById('aiSegmentDesc').textContent = on
     ? '開啟：內容穩定後自動收句，完整句移到上方保留'
-    : '關閉：即時顯示每個字幕片段';
+    : '關閉：即時顯示，上一段字幕會保留';
 }
 
 function refreshDebugVisibility() {
@@ -364,8 +388,8 @@ function flushSegment() {
   segFlushTimer = null;
   if (!origBuffer && !transBuffer) return;
   // 目前句 → 升格為前一句（供來不及看時補讀）
-  if (origBuffer)  document.getElementById('prevOriginal').textContent   = origBuffer;
-  if (transBuffer) document.getElementById('prevTranslated').textContent = transBuffer;
+  if (origBuffer)  setPreviousCaption('original', origBuffer);
+  if (transBuffer) setPreviousCaption('translated', transBuffer);
   origBuffer  = '';
   transBuffer = '';
   // 清空目前句，等待下一句
@@ -375,6 +399,56 @@ function flushSegment() {
   transEl.textContent = '';
   origEl.classList.remove('partial');
   transEl.classList.remove('partial');
+}
+
+function normalizeCaption(text) {
+  return (text || '').replace(/\s+/g, '').trim();
+}
+
+function shouldPromotePrevious(prev, next) {
+  const oldText = normalizeCaption(prev);
+  const newText = normalizeCaption(next);
+  if (oldText.length < 2 || !newText || oldText === newText) return false;
+  if (newText.includes(oldText) || oldText.includes(newText)) return false;
+
+  let commonPrefix = 0;
+  const max = Math.min(oldText.length, newText.length);
+  while (commonPrefix < max && oldText[commonPrefix] === newText[commonPrefix]) {
+    commonPrefix++;
+  }
+  return commonPrefix / Math.max(oldText.length, newText.length) < 0.45;
+}
+
+function setPreviousCaption(type, text) {
+  const isOriginal = type === 'original';
+  const el = document.getElementById(isOriginal ? 'prevOriginal' : 'prevTranslated');
+  el.textContent = text;
+
+  const oldTimer = isOriginal ? prevOriginalTimer : prevTranslatedTimer;
+  clearTimeout(oldTimer);
+
+  const newTimer = setTimeout(() => {
+    el.textContent = '';
+  }, captionHoldMs);
+
+  if (isOriginal) prevOriginalTimer = newTimer;
+  else prevTranslatedTimer = newTimer;
+}
+
+function updateImmediateCaption(type, nextText) {
+  const isOriginal = type === 'original';
+  const currentEl = document.getElementById(isOriginal ? 'originalText' : 'translatedText');
+  const previousText = isOriginal ? lastImmediateOriginal : lastImmediateTranslated;
+
+  if (shouldPromotePrevious(previousText, nextText)) {
+    setPreviousCaption(type, previousText);
+  }
+
+  currentEl.textContent = nextText;
+  currentEl.classList.remove('partial');
+
+  if (isOriginal) lastImmediateOriginal = nextText;
+  else lastImmediateTranslated = nextText;
 }
 
 // ── Cost display ──────────────────────────────────────────────────────────
@@ -438,6 +512,7 @@ window.startTranslation = async function() {
   const aiSegment   = document.getElementById('aiSegment').checked;
   const sysPromptTx = document.getElementById('sysPrompt').value.trim();
   costLimitTwd = Number(document.getElementById('costLimit').value || 0);
+  captionHoldMs = Number(document.getElementById('captionHold').value || 12) * 1000;
 
   document.getElementById('startBtn').style.display   = 'none';
   document.getElementById('stopBtn').style.display    = 'block';
@@ -457,6 +532,10 @@ window.startTranslation = async function() {
   origBuffer   = '';
   transBuffer  = '';
   clearTimeout(segFlushTimer); segFlushTimer = null;
+  clearTimeout(prevOriginalTimer); prevOriginalTimer = null;
+  clearTimeout(prevTranslatedTimer); prevTranslatedTimer = null;
+  lastImmediateOriginal = '';
+  lastImmediateTranslated = '';
   totalInputTok  = 0;
   totalOutputTok = 0;
   currentCostTwd = 0;
@@ -552,11 +631,11 @@ window.startTranslation = async function() {
             // Immediate update
             if (content.inputTranscription?.text) {
               lastInputAt = Date.now();
-              document.getElementById('originalText').textContent  = content.inputTranscription.text;
+              updateImmediateCaption('original', content.inputTranscription.text);
             }
             if (content.outputTranscription?.text) {
               lastOutputAt = Date.now();
-              document.getElementById('translatedText').textContent = content.outputTranscription.text;
+              updateImmediateCaption('translated', content.outputTranscription.text);
             }
           }
         },
@@ -642,6 +721,8 @@ window.stopTranslation = function() {
   running = false;
   stopTimer();
   clearTimeout(segFlushTimer); segFlushTimer = null;
+  clearTimeout(prevOriginalTimer); prevOriginalTimer = null;
+  clearTimeout(prevTranslatedTimer); prevTranslatedTimer = null;
   if (processor)   { try { processor.disconnect(); }      catch(_){} processor   = null; }
   if (audioContext){ try { audioContext.close(); }         catch(_){} audioContext = null; }
   if (micStream)   { micStream.getTracks().forEach(t => t.stop()); micStream = null; }

@@ -223,13 +223,13 @@ async function startTranslation() {
       setup: {
         model: 'models/gemini-3.5-live-translate-preview',
         generationConfig: {
-          responseModalities: ['AUDIO']
-        },
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
-        translationConfig: {
-          targetLanguageCode: targetLang,
-          echoTargetLanguage: false
+          responseModalities: ['AUDIO'],
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+          translationConfig: {
+            targetLanguageCode: targetLang,
+            echoTargetLanguage: false
+          }
         }
       }
     };

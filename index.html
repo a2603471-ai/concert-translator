@@ -88,8 +88,23 @@
     }
     .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
     .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
-    .original-text { font-size: 1rem; color: #888; min-height: 28px; line-height: 1.55; margin-bottom: 20px; word-break: break-all; }
-    .translated-text { font-size: 1.8rem; color: #fff; line-height: 1.45; min-height: 54px; font-weight: 500; word-break: break-all; }
+
+    /* 前一句（已完成，固定顯示供來不及看時補讀） */
+    .prev-original {
+      font-size: 0.82rem; color: #444; min-height: 18px;
+      line-height: 1.5; margin-bottom: 4px; word-break: break-all;
+    }
+    .prev-translated {
+      font-size: 1.25rem; color: #666; min-height: 36px; font-weight: 400;
+      line-height: 1.45; margin-bottom: 14px; word-break: break-all;
+    }
+
+    /* 目前句 */
+    .original-text { font-size: 1rem; color: #888; min-height: 28px; line-height: 1.55; margin-bottom: 20px; word-break: break-all; transition: opacity 0.2s; }
+    .translated-text { font-size: 1.8rem; color: #fff; line-height: 1.45; min-height: 54px; font-weight: 500; word-break: break-all; transition: opacity 0.2s; }
+    /* 翻譯進行中（半透明） */
+    .translated-text.partial { opacity: 0.45; }
+    .original-text.partial   { opacity: 0.55; }
 
     .tip { background: #1c1c1e; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 0.82rem; color: #666; line-height: 1.6; }
     .tip strong { color: #888; }
@@ -163,8 +178,10 @@
 
   <div class="captions" id="captions" style="display:none">
     <div class="cap-label">原文</div>
+    <div class="prev-original" id="prevOriginal"></div>
     <div class="original-text" id="originalText">—</div>
     <div class="cap-label">翻譯</div>
+    <div class="prev-translated" id="prevTranslated"></div>
     <div class="translated-text" id="translatedText">—</div>
   </div>
 
@@ -195,11 +212,11 @@ const DEFAULT_SYS_PROMPT =
 8. 語句不完整時照樣翻，不補全、不猜測說話者意圖。
 </rules>`;
 
-// Gemini 2.0 Flash Live 估算費率（Preview 模型僅供參考）
-// Audio input ~$0.70/1M tokens, Text output ~$0.30/1M tokens
-const RATE_INPUT_PER_M  = 0.70;
-const RATE_OUTPUT_PER_M = 0.30;
-const USD_TWD = 31;
+// Gemini 3.5 Live Translate 費率（Preview 版實際計費請以 AI Studio 帳單為準）
+// Audio input $3.50/1M tokens；echoTargetLanguage:false 時音訊輸出可能不計費
+const RATE_INPUT_PER_M  = 3.50;
+const RATE_OUTPUT_PER_M = 21.00;
+const USD_TWD = 32;
 
 let liveSession   = null;
 let audioContext  = null;
@@ -241,7 +258,7 @@ document.getElementById('aiSegment').addEventListener('change', () => {
 function refreshSegDesc() {
   const on = document.getElementById('aiSegment').checked;
   document.getElementById('aiSegmentDesc').textContent = on
-    ? '開啟：等完整句子才顯示，字幕更工整'
+    ? '開啟：邊翻邊顯示，完整句移到上方保留'
     : '關閉：即時顯示每個字幕片段';
 }
 
@@ -266,12 +283,25 @@ function showError(msg) {
 function hideError() { document.getElementById('errorBox').style.display = 'none'; }
 
 // ── Segment flush ─────────────────────────────────────────────────────────
+function isPunctEnd(text) {
+  return /[。！？!?～~…]+\s*$/.test(text || '');
+}
+
 function flushSegment() {
   segFlushTimer = null;
-  if (origBuffer)  document.getElementById('originalText').textContent  = origBuffer;
-  if (transBuffer) document.getElementById('translatedText').textContent = transBuffer;
+  if (!origBuffer && !transBuffer) return;
+  // 目前句 → 升格為前一句（供來不及看時補讀）
+  if (origBuffer)  document.getElementById('prevOriginal').textContent   = origBuffer;
+  if (transBuffer) document.getElementById('prevTranslated').textContent = transBuffer;
   origBuffer  = '';
   transBuffer = '';
+  // 清空目前句，等待下一句
+  const origEl  = document.getElementById('originalText');
+  const transEl = document.getElementById('translatedText');
+  origEl.textContent  = '';
+  transEl.textContent = '';
+  origEl.classList.remove('partial');
+  transEl.classList.remove('partial');
 }
 
 // ── Cost display ──────────────────────────────────────────────────────────
@@ -315,8 +345,12 @@ window.startTranslation = async function() {
   document.getElementById('stopBtn').style.display    = 'block';
   document.getElementById('captions').style.display   = 'block';
   document.getElementById('costLine').style.display   = 'block';
-  document.getElementById('originalText').textContent  = '—';
+  document.getElementById('originalText').textContent   = '—';
   document.getElementById('translatedText').textContent = '—';
+  document.getElementById('prevOriginal').textContent   = '';
+  document.getElementById('prevTranslated').textContent = '';
+  document.getElementById('translatedText').classList.remove('partial');
+  document.getElementById('originalText').classList.remove('partial');
   hideError();
   setStatus('連線中…');
 
@@ -373,16 +407,31 @@ window.startTranslation = async function() {
           if (!content) return;
 
           if (aiSegment) {
-            // Buffer until turn complete (fallback: auto-flush after 1.5s silence)
             let hasContent = false;
             if (content.inputTranscription?.text)  { origBuffer  = content.inputTranscription.text;  hasContent = true; }
             if (content.outputTranscription?.text) { transBuffer = content.outputTranscription.text; hasContent = true; }
+
+            if (hasContent) {
+              // 即時顯示（半透明），讓用戶知道有在翻
+              if (origBuffer) {
+                const el = document.getElementById('originalText');
+                el.textContent = origBuffer;
+                el.classList.add('partial');
+              }
+              if (transBuffer) {
+                const el = document.getElementById('translatedText');
+                el.textContent = transBuffer;
+                el.classList.add('partial');
+              }
+              // 偵測到標點 → 400ms 後升格；否則 3 秒靜音備援
+              const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
+              clearTimeout(segFlushTimer);
+              segFlushTimer = setTimeout(flushSegment, done ? 400 : 3000);
+            }
+
             if (content.turnComplete) {
               clearTimeout(segFlushTimer); segFlushTimer = null;
               flushSegment();
-            } else if (hasContent) {
-              clearTimeout(segFlushTimer);
-              segFlushTimer = setTimeout(flushSegment, 1500);
             }
           } else {
             // Immediate update

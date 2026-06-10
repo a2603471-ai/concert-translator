@@ -214,6 +214,7 @@ let totalOutputTok  = 0;
 let lastUsageSec    = 0;  // fallback: token-less time estimate
 let origBuffer      = '';
 let transBuffer     = '';
+let segFlushTimer   = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────
 window.onload = () => {
@@ -264,6 +265,15 @@ function showError(msg) {
 }
 function hideError() { document.getElementById('errorBox').style.display = 'none'; }
 
+// ── Segment flush ─────────────────────────────────────────────────────────
+function flushSegment() {
+  segFlushTimer = null;
+  if (origBuffer)  document.getElementById('originalText').textContent  = origBuffer;
+  if (transBuffer) document.getElementById('translatedText').textContent = transBuffer;
+  origBuffer  = '';
+  transBuffer = '';
+}
+
 // ── Cost display ──────────────────────────────────────────────────────────
 function startTimer() {
   timerInterval = setInterval(refreshCost, 1000);
@@ -313,6 +323,7 @@ window.startTranslation = async function() {
   running      = true;
   origBuffer   = '';
   transBuffer  = '';
+  clearTimeout(segFlushTimer); segFlushTimer = null;
   totalInputTok  = 0;
   totalOutputTok = 0;
   sessionStart = Date.now();
@@ -362,14 +373,16 @@ window.startTranslation = async function() {
           if (!content) return;
 
           if (aiSegment) {
-            // Buffer until turn complete
-            if (content.inputTranscription?.text)  origBuffer  = content.inputTranscription.text;
-            if (content.outputTranscription?.text) transBuffer = content.outputTranscription.text;
+            // Buffer until turn complete (fallback: auto-flush after 1.5s silence)
+            let hasContent = false;
+            if (content.inputTranscription?.text)  { origBuffer  = content.inputTranscription.text;  hasContent = true; }
+            if (content.outputTranscription?.text) { transBuffer = content.outputTranscription.text; hasContent = true; }
             if (content.turnComplete) {
-              if (origBuffer)  document.getElementById('originalText').textContent  = origBuffer;
-              if (transBuffer) document.getElementById('translatedText').textContent = transBuffer;
-              origBuffer  = '';
-              transBuffer = '';
+              clearTimeout(segFlushTimer); segFlushTimer = null;
+              flushSegment();
+            } else if (hasContent) {
+              clearTimeout(segFlushTimer);
+              segFlushTimer = setTimeout(flushSegment, 1500);
             }
           } else {
             // Immediate update
@@ -454,6 +467,7 @@ async function startMic() {
 window.stopTranslation = function() {
   running = false;
   stopTimer();
+  clearTimeout(segFlushTimer); segFlushTimer = null;
   if (processor)   { try { processor.disconnect(); }      catch(_){} processor   = null; }
   if (audioContext){ try { audioContext.close(); }         catch(_){} audioContext = null; }
   if (micStream)   { micStream.getTracks().forEach(t => t.stop()); micStream = null; }

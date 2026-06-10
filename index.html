@@ -20,7 +20,6 @@
       margin-bottom: 20px; letter-spacing: 0.05em; color: #eee;
     }
 
-    /* Setup card */
     .card {
       background: #1c1c1e;
       border-radius: 16px;
@@ -44,7 +43,6 @@
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
 
-    /* Buttons */
     .btn {
       width: 100%; padding: 17px; border-radius: 14px; border: none;
       font-size: 1.15rem; font-weight: 700; cursor: pointer;
@@ -55,7 +53,6 @@
     .btn-stop  { background: #ff453a; color: #fff; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* Status */
     .status {
       text-align: center; padding: 8px 0 2px;
       font-size: 0.85rem; color: #666;
@@ -63,7 +60,20 @@
     .status.active { color: #30d158; }
     .status.error  { color: #ff453a; }
 
-    /* Caption display */
+    /* 錯誤詳細訊息框 */
+    .error-box {
+      background: #2a0f0f;
+      border: 1px solid #7f1d1d;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 0.82rem;
+      color: #fca5a5;
+      line-height: 1.6;
+      display: none;
+      word-break: break-all;
+    }
+
     .captions {
       background: #1c1c1e;
       border-radius: 16px;
@@ -86,7 +96,6 @@
       font-weight: 500; word-break: break-all;
     }
 
-    /* API key helper */
     .helper {
       font-size: 0.78rem; color: #555; text-align: center;
       margin-top: 12px; line-height: 1.6;
@@ -140,6 +149,7 @@
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
 
   <div class="status" id="status">準備就緒</div>
+  <div class="error-box" id="errorBox"></div>
 
   <div class="captions" id="captions" style="display:none">
     <div class="cap-label">原文</div>
@@ -166,7 +176,6 @@ let processor = null;
 let micStream = null;
 let running = false;
 
-// 載入儲存的 API Key
 window.onload = () => {
   const saved = localStorage.getItem('gemini_key');
   if (saved) document.getElementById('apiKey').value = saved;
@@ -181,6 +190,16 @@ function setStatus(msg, type = '') {
   el.className = 'status ' + type;
 }
 
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('errorBox').style.display = 'none';
+}
+
 async function startTranslation() {
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { setStatus('請先填入 Gemini API Key', 'error'); return; }
@@ -192,6 +211,7 @@ async function startTranslation() {
   document.getElementById('captions').style.display = 'block';
   document.getElementById('originalText').textContent = '—';
   document.getElementById('translatedText').textContent = '—';
+  hideError();
   setStatus('連線中...');
   running = true;
 
@@ -219,7 +239,8 @@ async function startTranslation() {
     try {
       await startMic();
     } catch (err) {
-      setStatus('麥克風存取失敗：' + err.message, 'error');
+      showError('麥克風錯誤：' + err.message);
+      setStatus('麥克風存取失敗', 'error');
       stopTranslation();
     }
   };
@@ -238,13 +259,17 @@ async function startTranslation() {
     } catch (_) {}
   };
 
-  ws.onerror = () => {
-    setStatus('連線錯誤，請確認 API Key 是否正確', 'error');
+  ws.onerror = (e) => {
+    showError('WebSocket 連線錯誤。請確認 API Key 正確，且帳號已開通 Gemini API。');
+    setStatus('連線錯誤', 'error');
     stopTranslation();
   };
 
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     if (running) {
+      const reason = e.reason ? `（${e.reason}）` : '';
+      const code = e.code ? ` code:${e.code}` : '';
+      showError(`連線中斷${code}${reason}。若 code:1008/1011 表示 API Key 無效或無此模型權限。`);
       setStatus('連線已中斷', 'error');
       stopTranslation();
     }
@@ -253,25 +278,50 @@ async function startTranslation() {
 
 async function startMic() {
   micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: false }
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false }
   });
 
-  audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  // 使用瀏覽器預設 sample rate（iOS 通常 44100 或 48000）
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+  // iOS Safari 需要 resume
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  const nativeRate = audioContext.sampleRate;
   const source = audioContext.createMediaStreamSource(micStream);
 
-  // ScriptProcessor: 1600 samples = 100ms at 16kHz
-  processor = audioContext.createScriptProcessor(1600, 1, 1);
+  // buffer 約 100ms
+  const bufferSize = nextPow2(Math.round(nativeRate * 0.1));
+  processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
   processor.onaudioprocess = (e) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
     const f32 = e.inputBuffer.getChannelData(0);
-    const i16 = new Int16Array(f32.length);
-    for (let i = 0; i < f32.length; i++) {
-      const s = Math.max(-1, Math.min(1, f32[i]));
+
+    // 降採樣到 16000 Hz
+    let samples = f32;
+    if (nativeRate !== 16000) {
+      const ratio = nativeRate / 16000;
+      const newLen = Math.round(f32.length / ratio);
+      samples = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        samples[i] = f32[Math.min(Math.round(i * ratio), f32.length - 1)];
+      }
+    }
+
+    const i16 = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
       i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
+
     const bytes = new Uint8Array(i16.buffer);
     let bin = '';
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+
     ws.send(JSON.stringify({
       realtimeInput: { audio: { data: btoa(bin), mimeType: 'audio/pcm;rate=16000' } }
     }));
@@ -281,16 +331,22 @@ async function startMic() {
   processor.connect(audioContext.destination);
 }
 
+function nextPow2(n) {
+  return Math.pow(2, Math.round(Math.log2(n)));
+}
+
 function stopTranslation() {
   running = false;
-  if (processor) { try { processor.disconnect(); } catch (_) {} processor = null; }
-  if (audioContext) { try { audioContext.close(); } catch (_) {} audioContext = null; }
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-  if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+  if (processor)    { try { processor.disconnect(); } catch (_) {} processor = null; }
+  if (audioContext) { try { audioContext.close(); }   catch (_) {} audioContext = null; }
+  if (micStream)    { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (ws)           { try { ws.close(); }             catch (_) {} ws = null; }
 
   document.getElementById('startBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display = 'none';
-  setStatus('已停止');
+  if (document.getElementById('status').className !== 'status error') {
+    setStatus('已停止');
+  }
 }
 </script>
 </body>

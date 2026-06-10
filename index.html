@@ -80,6 +80,10 @@
       padding-bottom: 4px; display: none;
     }
     .cost-line .cost-val { color: #666; }
+    .debug-line {
+      text-align: center; font-size: 0.72rem; color: #555;
+      padding-bottom: 4px; display: none; line-height: 1.5;
+    }
 
     .error-box {
       background: #2a0f0f; border: 1px solid #7f1d1d; border-radius: 10px;
@@ -156,6 +160,38 @@
 
     <hr class="card-divider">
 
+    <div class="row">
+      <div>
+        <label>費用上限保護</label>
+        <select id="costLimit">
+          <option value="0">不自動停止</option>
+          <option value="5">NT$5</option>
+          <option value="10" selected>NT$10</option>
+          <option value="30">NT$30</option>
+        </select>
+      </div>
+      <div>
+        <label>麥克風降噪</label>
+        <select id="noiseSuppression">
+          <option value="false" selected>關閉（保留現場聲）</option>
+          <option value="true">開啟（降低背景噪音）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-left">
+        <div class="toggle-title">Debug 資訊</div>
+        <div class="toggle-desc">顯示音量、音訊送出、字幕回傳狀態</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="debugMode">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <hr class="card-divider">
+
     <!-- 翻譯提示詞 collapsible -->
     <div class="collapsible-trigger" onclick="toggleSysPrompt()">
       <div class="collapsible-left">
@@ -174,6 +210,7 @@
 
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
+  <div class="debug-line" id="debugLine"></div>
   <div class="error-box" id="errorBox"></div>
 
   <div class="captions" id="captions" style="display:none">
@@ -216,7 +253,10 @@ const DEFAULT_SYS_PROMPT =
 // Audio input $3.50/1M tokens；echoTargetLanguage:false 時音訊輸出可能不計費
 const RATE_INPUT_PER_M  = 3.50;
 const RATE_OUTPUT_PER_M = 21.00;
+const RATE_AUDIO_PER_MIN_USD = 0.0368;
 const USD_TWD = 32;
+const STABLE_FLUSH_MS = 1600;
+const PUNCT_FLUSH_MS = 700;
 
 let liveSession   = null;
 let audioContext  = null;
@@ -232,16 +272,31 @@ let lastUsageSec    = 0;  // fallback: token-less time estimate
 let origBuffer      = '';
 let transBuffer     = '';
 let segFlushTimer   = null;
+let currentCostTwd  = 0;
+let costLimitTwd    = 0;
+let autoStoppedByCost = false;
+let audioChunkCount = 0;
+let silentChunkCount = 0;
+let lastAudioLevel  = 0;
+let lastInputAt     = 0;
+let lastOutputAt    = 0;
 
 // ── Init ──────────────────────────────────────────────────────────────────
 window.onload = () => {
   const savedKey    = localStorage.getItem('gemini_key');
   const savedPrompt = localStorage.getItem('sys_prompt');
   const savedSeg    = localStorage.getItem('ai_segment') === 'true';
+  const savedNoise  = localStorage.getItem('noise_suppression');
+  const savedDebug  = localStorage.getItem('debug_mode') === 'true';
+  const savedLimit  = localStorage.getItem('cost_limit_twd');
 
   if (savedKey)    document.getElementById('apiKey').value = savedKey;
   document.getElementById('sysPrompt').value = savedPrompt ?? DEFAULT_SYS_PROMPT;
   document.getElementById('aiSegment').checked = savedSeg;
+  if (savedNoise != null) document.getElementById('noiseSuppression').value = savedNoise;
+  if (savedLimit != null) document.getElementById('costLimit').value = savedLimit;
+  document.getElementById('debugMode').checked = savedDebug;
+  refreshDebugVisibility();
   refreshSegDesc();
 };
 
@@ -253,13 +308,26 @@ document.getElementById('aiSegment').addEventListener('change', () => {
   localStorage.setItem('ai_segment', document.getElementById('aiSegment').checked);
   refreshSegDesc();
 });
+document.getElementById('noiseSuppression').addEventListener('change', e =>
+  localStorage.setItem('noise_suppression', e.target.value));
+document.getElementById('costLimit').addEventListener('change', e =>
+  localStorage.setItem('cost_limit_twd', e.target.value));
+document.getElementById('debugMode').addEventListener('change', () => {
+  localStorage.setItem('debug_mode', document.getElementById('debugMode').checked);
+  refreshDebugVisibility();
+});
 
 // ── UI helpers ────────────────────────────────────────────────────────────
 function refreshSegDesc() {
   const on = document.getElementById('aiSegment').checked;
   document.getElementById('aiSegmentDesc').textContent = on
-    ? '開啟：邊翻邊顯示，完整句移到上方保留'
+    ? '開啟：內容穩定後自動收句，完整句移到上方保留'
     : '關閉：即時顯示每個字幕片段';
+}
+
+function refreshDebugVisibility() {
+  document.getElementById('debugLine').style.display =
+    document.getElementById('debugMode').checked ? 'block' : 'none';
 }
 
 window.toggleSysPrompt = function() {
@@ -285,6 +353,11 @@ function hideError() { document.getElementById('errorBox').style.display = 'none
 // ── Segment flush ─────────────────────────────────────────────────────────
 function isPunctEnd(text) {
   return /[。！？!?～~…]+\s*$/.test(text || '');
+}
+
+function scheduleSegmentFlush(done) {
+  clearTimeout(segFlushTimer);
+  segFlushTimer = setTimeout(flushSegment, done ? PUNCT_FLUSH_MS : STABLE_FLUSH_MS);
 }
 
 function flushSegment() {
@@ -323,13 +396,37 @@ function refreshCost() {
   if (totalInputTok + totalOutputTok > 0) {
     const usd = (totalInputTok / 1e6) * RATE_INPUT_PER_M
               + (totalOutputTok / 1e6) * RATE_OUTPUT_PER_M;
-    const twd = usd * USD_TWD;
-    costStr = `${timeStr} ｜ ${(totalInputTok + totalOutputTok).toLocaleString()} tokens ≈ NT$${twd.toFixed(4)}`;
+    currentCostTwd = usd * USD_TWD;
+    costStr = `${timeStr} ｜ ${(totalInputTok + totalOutputTok).toLocaleString()} tokens ≈ NT$${currentCostTwd.toFixed(4)}`;
   } else {
-    // token data not available — show time only
-    costStr = `${timeStr} ｜ 費用請至 Google AI Studio 確認`;
+    currentCostTwd = secs / 60 * RATE_AUDIO_PER_MIN_USD * USD_TWD;
+    costStr = `${timeStr} ｜ 付費估算 ≈ NT$${currentCostTwd.toFixed(4)}（帳單以 AI Studio 為準）`;
   }
   document.getElementById('costDisplay').textContent = costStr;
+  refreshDebug();
+  enforceCostLimit();
+}
+
+function enforceCostLimit() {
+  if (!running || autoStoppedByCost || costLimitTwd <= 0) return;
+  if (currentCostTwd < costLimitTwd) return;
+  autoStoppedByCost = true;
+  showError(`已達費用上限 NT$${costLimitTwd}，已自動停止。實際費用仍以 Google AI Studio 帳單為準。`);
+  setStatus('費用上限停止', 'error');
+  window.stopTranslation();
+}
+
+function secondsAgo(ts) {
+  return ts ? `${Math.round((Date.now() - ts) / 1000)} 秒前` : '尚未收到';
+}
+
+function refreshDebug() {
+  if (!document.getElementById('debugMode').checked) return;
+  const silentRate = audioChunkCount
+    ? Math.round((silentChunkCount / audioChunkCount) * 100)
+    : 0;
+  document.getElementById('debugLine').textContent =
+    `音量 ${lastAudioLevel.toFixed(3)} ｜ 音訊 ${audioChunkCount} 包 ｜ 靜音 ${silentRate}% ｜ 原文 ${secondsAgo(lastInputAt)} ｜ 翻譯 ${secondsAgo(lastOutputAt)}`;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -340,11 +437,13 @@ window.startTranslation = async function() {
   const targetLang  = document.getElementById('targetLang').value;
   const aiSegment   = document.getElementById('aiSegment').checked;
   const sysPromptTx = document.getElementById('sysPrompt').value.trim();
+  costLimitTwd = Number(document.getElementById('costLimit').value || 0);
 
   document.getElementById('startBtn').style.display   = 'none';
   document.getElementById('stopBtn').style.display    = 'block';
   document.getElementById('captions').style.display   = 'block';
   document.getElementById('costLine').style.display   = 'block';
+  refreshDebugVisibility();
   document.getElementById('originalText').textContent   = '—';
   document.getElementById('translatedText').textContent = '—';
   document.getElementById('prevOriginal').textContent   = '';
@@ -360,6 +459,13 @@ window.startTranslation = async function() {
   clearTimeout(segFlushTimer); segFlushTimer = null;
   totalInputTok  = 0;
   totalOutputTok = 0;
+  currentCostTwd = 0;
+  autoStoppedByCost = false;
+  audioChunkCount = 0;
+  silentChunkCount = 0;
+  lastAudioLevel = 0;
+  lastInputAt = 0;
+  lastOutputAt = 0;
   sessionStart = Date.now();
   startTimer();
 
@@ -407,11 +513,21 @@ window.startTranslation = async function() {
           if (!content) return;
 
           if (aiSegment) {
-            let hasContent = false;
-            if (content.inputTranscription?.text)  { origBuffer  = content.inputTranscription.text;  hasContent = true; }
-            if (content.outputTranscription?.text) { transBuffer = content.outputTranscription.text; hasContent = true; }
+            let contentChanged = false;
+            const inputText = content.inputTranscription?.text;
+            const outputText = content.outputTranscription?.text;
+            if (inputText && inputText !== origBuffer) {
+              origBuffer = inputText;
+              lastInputAt = Date.now();
+              contentChanged = true;
+            }
+            if (outputText && outputText !== transBuffer) {
+              transBuffer = outputText;
+              lastOutputAt = Date.now();
+              contentChanged = true;
+            }
 
-            if (hasContent) {
+            if (contentChanged) {
               // 即時顯示（半透明），讓用戶知道有在翻
               if (origBuffer) {
                 const el = document.getElementById('originalText');
@@ -423,10 +539,9 @@ window.startTranslation = async function() {
                 el.textContent = transBuffer;
                 el.classList.add('partial');
               }
-              // 偵測到標點 → 400ms 後升格；否則 3 秒靜音備援
+              // 標點只作加速；主要靠「內容停止更新」自動收句，避免提示詞禁句號時卡住。
               const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
-              clearTimeout(segFlushTimer);
-              segFlushTimer = setTimeout(flushSegment, done ? 400 : 3000);
+              scheduleSegmentFlush(done);
             }
 
             if (content.turnComplete) {
@@ -435,10 +550,14 @@ window.startTranslation = async function() {
             }
           } else {
             // Immediate update
-            if (content.inputTranscription?.text)
+            if (content.inputTranscription?.text) {
+              lastInputAt = Date.now();
               document.getElementById('originalText').textContent  = content.inputTranscription.text;
-            if (content.outputTranscription?.text)
+            }
+            if (content.outputTranscription?.text) {
+              lastOutputAt = Date.now();
               document.getElementById('translatedText').textContent = content.outputTranscription.text;
+            }
           }
         },
 
@@ -469,8 +588,9 @@ window.startTranslation = async function() {
 function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
 
 async function startMic() {
+  const useNoiseSuppression = document.getElementById('noiseSuppression').value === 'true';
   micStream    = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false }
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: useNoiseSuppression }
   });
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === 'suspended') await audioContext.resume();
@@ -483,6 +603,7 @@ async function startMic() {
   processor.onaudioprocess = (e) => {
     if (!liveSession || !running) return;
     const f32 = e.inputBuffer.getChannelData(0);
+    audioChunkCount++;
 
     let samples = f32;
     if (nativeRate !== 16000) {
@@ -494,10 +615,14 @@ async function startMic() {
     }
 
     const i16 = new Int16Array(samples.length);
+    let peak = 0;
     for (let i = 0; i < samples.length; i++) {
       const s = Math.max(-1, Math.min(1, samples[i]));
+      peak = Math.max(peak, Math.abs(s));
       i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
+    lastAudioLevel = peak;
+    if (peak < 0.003) silentChunkCount++;
 
     const bytes = new Uint8Array(i16.buffer);
     let bin = '';

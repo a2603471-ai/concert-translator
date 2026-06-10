@@ -8,110 +8,46 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0d0d0d;
-      color: #fff;
-      min-height: 100vh;
-      padding: 16px;
+      background: #0d0d0d; color: #fff;
+      min-height: 100vh; padding: 16px;
     }
     .container { max-width: 560px; margin: 0 auto; }
+    h1 { font-size: 1.3rem; text-align: center; margin-bottom: 20px; color: #eee; }
 
-    h1 {
-      font-size: 1.3rem; text-align: center;
-      margin-bottom: 20px; letter-spacing: 0.05em; color: #eee;
-    }
-
-    .card {
-      background: #1c1c1e;
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 14px;
-    }
-    .card-title {
-      font-size: 0.75rem; color: #888; text-transform: uppercase;
-      letter-spacing: 0.1em; margin-bottom: 12px;
-    }
+    .card { background: #1c1c1e; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+    .card-title { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
     label { font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 4px; }
     input[type=password], select {
-      width: 100%; padding: 11px 12px;
-      border-radius: 10px; border: 1px solid #333;
-      background: #2c2c2e; color: #fff;
+      width: 100%; padding: 11px 12px; border-radius: 10px;
+      border: 1px solid #333; background: #2c2c2e; color: #fff;
       font-size: 1rem; margin-bottom: 12px; outline: none;
     }
-    input[type=password]:focus, select:focus { border-color: #555; }
     input[type=password]:last-child, select:last-child { margin-bottom: 0; }
-
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
 
-    .btn {
-      width: 100%; padding: 17px; border-radius: 14px; border: none;
-      font-size: 1.15rem; font-weight: 700; cursor: pointer;
-      transition: transform 0.1s, opacity 0.1s;
-    }
-    .btn:active { transform: scale(0.97); }
+    .btn { width: 100%; padding: 17px; border-radius: 14px; border: none; font-size: 1.15rem; font-weight: 700; cursor: pointer; }
     .btn-start { background: #30d158; color: #000; }
     .btn-stop  { background: #ff453a; color: #fff; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .status {
-      text-align: center; padding: 8px 0 2px;
-      font-size: 0.85rem; color: #666;
-    }
+    .status { text-align: center; padding: 8px 0 2px; font-size: 0.85rem; color: #666; }
     .status.active { color: #30d158; }
     .status.error  { color: #ff453a; }
 
-    /* 錯誤詳細訊息框 */
     .error-box {
-      background: #2a0f0f;
-      border: 1px solid #7f1d1d;
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-top: 10px;
-      font-size: 0.82rem;
-      color: #fca5a5;
-      line-height: 1.6;
-      display: none;
-      word-break: break-all;
+      background: #2a0f0f; border: 1px solid #7f1d1d; border-radius: 10px;
+      padding: 12px 14px; margin-top: 10px; font-size: 0.82rem; color: #fca5a5;
+      line-height: 1.6; display: none; word-break: break-all;
     }
+    .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
+    .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
+    .original-text { font-size: 1rem; color: #888; min-height: 28px; line-height: 1.55; margin-bottom: 20px; word-break: break-all; }
+    .translated-text { font-size: 1.8rem; color: #fff; line-height: 1.45; min-height: 54px; font-weight: 500; word-break: break-all; }
 
-    .captions {
-      background: #1c1c1e;
-      border-radius: 16px;
-      padding: 20px 18px;
-      margin-top: 14px;
-    }
-    .cap-label {
-      font-size: 0.7rem; color: #555;
-      text-transform: uppercase; letter-spacing: 0.12em;
-      margin-bottom: 6px;
-    }
-    .original-text {
-      font-size: 1rem; color: #888; min-height: 28px;
-      line-height: 1.55; margin-bottom: 20px;
-      word-break: break-all;
-    }
-    .translated-text {
-      font-size: 1.8rem; color: #fff;
-      line-height: 1.45; min-height: 54px;
-      font-weight: 500; word-break: break-all;
-    }
-
-    .helper {
-      font-size: 0.78rem; color: #555; text-align: center;
-      margin-top: 12px; line-height: 1.6;
-    }
-    .helper a { color: #0a84ff; text-decoration: none; }
-
-    .tip {
-      background: #1c1c1e;
-      border-radius: 12px;
-      padding: 12px 14px;
-      margin-top: 14px;
-      font-size: 0.82rem;
-      color: #666;
-      line-height: 1.6;
-    }
+    .tip { background: #1c1c1e; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 0.82rem; color: #666; line-height: 1.6; }
     .tip strong { color: #888; }
+    .helper { font-size: 0.78rem; color: #555; text-align: center; margin-top: 12px; line-height: 1.6; }
+    .helper a { color: #0a84ff; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -120,10 +56,8 @@
 
   <div class="card">
     <div class="card-title">設定</div>
-
     <label>Gemini API Key</label>
     <input type="password" id="apiKey" placeholder="AIzaSy..." />
-
     <div class="row">
       <div>
         <label>來源語言（藝人說的）</label>
@@ -162,15 +96,16 @@
     <strong>效果最佳情況：</strong> 藝人暫停音樂說話（MC）時效果最好。<br>
     背景有大聲音樂時準確度可能下降。
   </div>
-
   <p class="helper">
     還沒有 API Key？免費申請：<br>
     <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>
   </p>
 </div>
 
-<script>
-let ws = null;
+<script type="module">
+import { GoogleGenAI } from 'https://esm.sh/@google/genai';
+
+let liveSession = null;
 let audioContext = null;
 let processor = null;
 let micStream = null;
@@ -189,18 +124,19 @@ function setStatus(msg, type = '') {
   el.textContent = msg;
   el.className = 'status ' + type;
 }
-
 function showError(msg) {
   const box = document.getElementById('errorBox');
   box.textContent = msg;
   box.style.display = 'block';
 }
-
 function hideError() {
   document.getElementById('errorBox').style.display = 'none';
 }
+function nextPow2(n) {
+  return Math.pow(2, Math.round(Math.log2(n)));
+}
 
-async function startTranslation() {
+window.startTranslation = async function() {
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { setStatus('請先填入 Gemini API Key', 'error'); return; }
 
@@ -215,93 +151,80 @@ async function startTranslation() {
   setStatus('連線中...');
   running = true;
 
-  const WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${apiKey}`;
-  ws = new WebSocket(WS_URL);
+  try {
+    const ai = new GoogleGenAI({ apiKey });
 
-  ws.onopen = async () => {
-    const setup = {
-      setup: {
-        model: 'models/gemini-3.5-live-translate-preview',
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          translationConfig: {
-            targetLanguageCode: targetLang,
-            echoTargetLanguage: false
+    liveSession = await ai.live.connect({
+      model: 'gemini-3.5-live-translate-preview',
+      config: {
+        responseModalities: ['AUDIO'],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+        translationConfig: {
+          targetLanguageCode: targetLang,
+          echoTargetLanguage: false
+        }
+      },
+      callbacks: {
+        onopen: async () => {
+          setStatus('● 翻譯中', 'active');
+          try {
+            await startMic();
+          } catch (err) {
+            showError('麥克風錯誤：' + err.message);
+            setStatus('麥克風失敗', 'error');
+            window.stopTranslation();
+          }
+        },
+        onmessage: (message) => {
+          const content = message.serverContent;
+          if (!content) return;
+          if (content.inputTranscription?.text) {
+            document.getElementById('originalText').textContent = content.inputTranscription.text;
+          }
+          if (content.outputTranscription?.text) {
+            document.getElementById('translatedText').textContent = content.outputTranscription.text;
+          }
+        },
+        onerror: (e) => {
+          showError('連線錯誤：' + (e?.message || JSON.stringify(e)));
+          setStatus('連線錯誤', 'error');
+          window.stopTranslation();
+        },
+        onclose: (e) => {
+          if (running) {
+            const reason = e?.reason || '';
+            showError('連線中斷' + (reason ? `：${reason}` : '（原因不明）'));
+            setStatus('連線中斷', 'error');
+            window.stopTranslation();
           }
         }
       }
-    };
-    ws.send(JSON.stringify(setup));
-    setStatus('● 翻譯中', 'active');
+    });
 
-    try {
-      await startMic();
-    } catch (err) {
-      showError('麥克風錯誤：' + err.message);
-      setStatus('麥克風存取失敗', 'error');
-      stopTranslation();
-    }
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      const content = data.serverContent;
-      if (!content) return;
-      if (content.inputTranscription?.text) {
-        document.getElementById('originalText').textContent = content.inputTranscription.text;
-      }
-      if (content.outputTranscription?.text) {
-        document.getElementById('translatedText').textContent = content.outputTranscription.text;
-      }
-    } catch (_) {}
-  };
-
-  ws.onerror = (e) => {
-    showError('WebSocket 連線錯誤。請確認 API Key 正確，且帳號已開通 Gemini API。');
-    setStatus('連線錯誤', 'error');
-    stopTranslation();
-  };
-
-  ws.onclose = (e) => {
-    if (running) {
-      const reason = e.reason ? `（${e.reason}）` : '';
-      const code = e.code ? ` code:${e.code}` : '';
-      showError(`連線中斷${code}${reason}。若 code:1008/1011 表示 API Key 無效或無此模型權限。`);
-      setStatus('連線已中斷', 'error');
-      stopTranslation();
-    }
-  };
-}
+  } catch (err) {
+    showError('連線失敗：' + err.message);
+    setStatus('連線失敗', 'error');
+    window.stopTranslation();
+  }
+};
 
 async function startMic() {
   micStream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: false }
   });
-
-  // 使用瀏覽器預設 sample rate（iOS 通常 44100 或 48000）
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-  // iOS Safari 需要 resume
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
-  }
+  if (audioContext.state === 'suspended') await audioContext.resume();
 
   const nativeRate = audioContext.sampleRate;
   const source = audioContext.createMediaStreamSource(micStream);
-
-  // buffer 約 100ms
   const bufferSize = nextPow2(Math.round(nativeRate * 0.1));
   processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
   processor.onaudioprocess = (e) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
+    if (!liveSession || !running) return;
     const f32 = e.inputBuffer.getChannelData(0);
 
-    // 降採樣到 16000 Hz
     let samples = f32;
     if (nativeRate !== 16000) {
       const ratio = nativeRate / 16000;
@@ -322,32 +245,30 @@ async function startMic() {
     let bin = '';
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
 
-    ws.send(JSON.stringify({
-      realtimeInput: { audio: { data: btoa(bin), mimeType: 'audio/pcm;rate=16000' } }
-    }));
+    try {
+      liveSession.sendRealtimeInput({
+        audio: { data: btoa(bin), mimeType: 'audio/pcm;rate=16000' }
+      });
+    } catch (_) {}
   };
 
   source.connect(processor);
   processor.connect(audioContext.destination);
 }
 
-function nextPow2(n) {
-  return Math.pow(2, Math.round(Math.log2(n)));
-}
-
-function stopTranslation() {
+window.stopTranslation = function() {
   running = false;
-  if (processor)    { try { processor.disconnect(); } catch (_) {} processor = null; }
-  if (audioContext) { try { audioContext.close(); }   catch (_) {} audioContext = null; }
-  if (micStream)    { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-  if (ws)           { try { ws.close(); }             catch (_) {} ws = null; }
+  if (processor)     { try { processor.disconnect(); }        catch(_){} processor = null; }
+  if (audioContext)  { try { audioContext.close(); }          catch(_){} audioContext = null; }
+  if (micStream)     { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (liveSession)   { try { liveSession.close(); }           catch(_){} liveSession = null; }
 
   document.getElementById('startBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display = 'none';
-  if (document.getElementById('status').className !== 'status error') {
+  if (!document.getElementById('status').className.includes('error')) {
     setStatus('已停止');
   }
-}
+};
 </script>
 </body>
 </html>

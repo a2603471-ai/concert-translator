@@ -623,8 +623,11 @@ function syncPiP(orig, trans) {
   drawPiPFrame(o, t);
 }
 
-function initPiPCanvas() {
-  if (pipCanvas) return;
+async function initPiPCanvas() {
+  if (pipCanvas) {
+    if (pipVideo.paused) await pipVideo.play().catch(() => {});
+    return;
+  }
   pipCanvas        = document.createElement('canvas');
   pipCanvas.width  = 640;
   pipCanvas.height = 240;
@@ -635,9 +638,10 @@ function initPiPCanvas() {
   pipVideo = document.createElement('video');
   pipVideo.srcObject = stream;
   pipVideo.muted     = true;
+  pipVideo.playsInline = true;
   pipVideo.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
   document.body.appendChild(pipVideo);
-  pipVideo.play().catch(() => {});
+  await pipVideo.play().catch(() => {});
 
   pipVideo.addEventListener('leavepictureinpicture', () => {
     pipActive = false;
@@ -653,7 +657,7 @@ window.openFloatingCaption = async function() {
     alert('你的瀏覽器不支援懸浮視窗\n\n需要 iOS 15.4+ 或 Android Chrome 116+\n\n建議改用分割畫面：長按 Home 鍵進入多工，把翻譯視窗拖到上半部');
     return;
   }
-  initPiPCanvas();
+  await initPiPCanvas();
   try {
     if (document.pictureInPictureElement) {
       await document.exitPictureInPicture();

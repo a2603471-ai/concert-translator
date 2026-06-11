@@ -564,24 +564,6 @@ async function releaseWakeLock() {
   wakeLock = null;
 }
 
-// ── Canvas PiP ────────────────────────────────────────────────────────────
-function wrapText(ctx, text, maxWidth) {
-  if (!text || text === '—') return [text];
-  const lines = [];
-  let line = '';
-  for (const char of text) {
-    const test = line + char;
-    if (ctx.measureText(test).width > maxWidth) {
-      if (line) lines.push(line);
-      line = char;
-    } else {
-      line = test;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
 
 // ── Main ──────────────────────────────────────────────────────────────────
 window.startTranslation = async function() {

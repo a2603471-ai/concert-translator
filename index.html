@@ -25,7 +25,6 @@
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
 
-    /* Divider line inside card */
     .card-divider { border: none; border-top: 1px solid #2a2a2a; margin: 4px 0; }
 
     /* Toggle row */
@@ -48,6 +47,21 @@
     }
     input:checked + .slider { background-color: #30d158; }
     input:checked + .slider:before { transform: translateX(18px); }
+
+    /* 進階設定 */
+    .advanced-section { margin-bottom: 14px; }
+    .advanced-trigger {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; cursor: pointer; user-select: none;
+      background: #1c1c1e; border-radius: 16px;
+    }
+    .advanced-trigger.open { border-radius: 16px 16px 0 0; }
+    .advanced-trigger-title { font-size: 0.85rem; color: #888; }
+    .advanced-arrow { color: #555; font-size: 0.72rem; transition: transform 0.2s; }
+    .advanced-arrow.open { transform: rotate(180deg); }
+    .advanced-body { display: none; }
+    .advanced-body.open { display: block; }
+    .advanced-body .card { border-radius: 0 0 16px 16px; margin-bottom: 0; }
 
     /* Collapsible prompt */
     .collapsible-trigger {
@@ -80,33 +94,41 @@
       padding-bottom: 4px; display: none;
     }
     .cost-line .cost-val { color: #666; }
-    .debug-line {
-      text-align: center; font-size: 0.72rem; color: #555;
-      padding-bottom: 4px; display: none; line-height: 1.5;
+
+    /* 狀態燈號列 */
+    .status-lights {
+      display: none;
+      text-align: center; font-size: 0.85rem; color: #666;
+      padding: 4px 0 6px; line-height: 1.6;
     }
+    .status-lights .warn { color: #ff9f0a; }
 
     .error-box {
       background: #2a0f0f; border: 1px solid #7f1d1d; border-radius: 10px;
       padding: 12px 14px; margin-top: 10px; font-size: 0.82rem; color: #fca5a5;
       line-height: 1.6; display: none; word-break: break-all;
     }
-    .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
-    .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; }
 
-    /* 前一句（已完成，固定顯示供來不及看時補讀） */
-    .prev-original {
-      font-size: 0.82rem; color: #444; min-height: 18px;
-      line-height: 1.5; margin-bottom: 4px; word-break: break-all;
-    }
-    .prev-translated {
-      font-size: 1.25rem; color: #666; min-height: 36px; font-weight: 400;
-      line-height: 1.45; margin-bottom: 14px; word-break: break-all;
-    }
+    .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
+    .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; }
+
+    /* 字幕歷史（3 段，舊→新由上到下） */
+    .hist-orig    { font-size: 0.72rem; color: #2e2e30; line-height: 1.5; word-break: break-all; }
+    .hist-orig.h2 { font-size: 0.77rem; color: #3a3a3c; }
+    .hist-orig.h1 { font-size: 0.82rem; color: #444;    margin-bottom: 4px; }
+    .hist-trans    { font-size: 0.95rem; color: #2e2e30; line-height: 1.45; word-break: break-all; }
+    .hist-trans.h2 { font-size: 1.05rem; color: #3a3a3c; }
+    .hist-trans.h1 { font-size: 1.25rem; color: #666;    margin-bottom: 14px; }
 
     /* 目前句 */
-    .original-text { font-size: 1rem; color: #888; min-height: 28px; line-height: 1.55; margin-bottom: 20px; word-break: break-all; transition: opacity 0.2s; }
-    .translated-text { font-size: 1.8rem; color: #fff; line-height: 1.45; min-height: 54px; font-weight: 500; word-break: break-all; transition: opacity 0.2s; }
-    /* 翻譯進行中（半透明） */
+    .original-text {
+      font-size: 1rem; color: #888; min-height: 28px;
+      line-height: 1.55; margin-bottom: 20px; word-break: break-all; transition: opacity 0.2s;
+    }
+    .translated-text {
+      font-size: 1.8rem; color: #fff; line-height: 1.45;
+      min-height: 54px; font-weight: 500; word-break: break-all; transition: opacity 0.2s;
+    }
     .translated-text.partial { opacity: 0.45; }
     .original-text.partial   { opacity: 0.55; }
 
@@ -120,10 +142,11 @@
 <div class="container">
   <h1>🎤 演唱會即時翻譯</h1>
 
+  <!-- 基本設定 -->
   <div class="card">
     <div class="card-title">設定</div>
     <label>Gemini API Key</label>
-    <input type="password" id="apiKey" placeholder="AIzaSy..." />
+    <input type="password" id="apiKey" placeholder="AIzaSy…" />
     <div class="row">
       <div>
         <label>來源語言（藝人說的）</label>
@@ -143,75 +166,73 @@
         </select>
       </div>
     </div>
+  </div>
 
-    <hr class="card-divider">
-
-    <!-- AI 分句 toggle -->
-    <div class="toggle-row">
-      <div class="toggle-left">
-        <div class="toggle-title">AI 分句模式（進階）</div>
-        <div class="toggle-desc" id="aiSegmentDesc">關閉：即時顯示每個字幕片段</div>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="aiSegment">
-        <span class="slider"></span>
-      </label>
+  <!-- 進階設定（折疊） -->
+  <div class="advanced-section">
+    <div class="advanced-trigger" id="advancedTrigger" onclick="toggleAdvanced()">
+      <span class="advanced-trigger-title">⚙️ 進階設定</span>
+      <span class="advanced-arrow" id="advancedArrow">▼</span>
     </div>
+    <div class="advanced-body" id="advancedBody">
+      <div class="card">
+        <!-- 精準分句 toggle -->
+        <div class="toggle-row">
+          <div class="toggle-left">
+            <div class="toggle-title">精準分句（稍有延遲）</div>
+            <div class="toggle-desc" id="aiSegmentDesc">關閉：即時顯示，上一段字幕會保留</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="aiSegment">
+            <span class="slider"></span>
+          </label>
+        </div>
 
-    <hr class="card-divider">
+        <hr class="card-divider">
 
-    <div class="row">
-      <div>
-        <label>費用上限保護</label>
-        <select id="costLimit">
-          <option value="0">不自動停止</option>
-          <option value="5">NT$5</option>
-          <option value="10" selected>NT$10</option>
-          <option value="30">NT$30</option>
-        </select>
+        <div class="row">
+          <div>
+            <label>費用上限保護</label>
+            <select id="costLimit">
+              <option value="0">不自動停止</option>
+              <option value="5">NT$5</option>
+              <option value="10" selected>NT$10</option>
+              <option value="30">NT$30</option>
+            </select>
+          </div>
+          <div>
+            <label>麥克風降噪</label>
+            <select id="noiseSuppression">
+              <option value="false" selected>關閉（保留現場聲）</option>
+              <option value="true">開啟（降低背景噪音）</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label>字幕保留時間</label>
+          <select id="captionHold">
+            <option value="8">8 秒</option>
+            <option value="12" selected>12 秒（建議）</option>
+            <option value="20">20 秒</option>
+            <option value="30">30 秒</option>
+          </select>
+        </div>
+
+        <hr class="card-divider">
+
+        <!-- 翻譯提示詞 collapsible -->
+        <div class="collapsible-trigger" onclick="toggleSysPrompt()">
+          <div class="collapsible-left">
+            <div class="trigger-title">翻譯提示詞</div>
+            <div class="trigger-desc">字幕翻譯風格與規則</div>
+          </div>
+          <span class="collapsible-arrow" id="sysArrow">▼</span>
+        </div>
+        <div class="collapsible-body" id="sysBody">
+          <textarea class="sys-prompt" id="sysPrompt"></textarea>
+        </div>
       </div>
-      <div>
-        <label>麥克風降噪</label>
-        <select id="noiseSuppression">
-          <option value="false" selected>關閉（保留現場聲）</option>
-          <option value="true">開啟（降低背景噪音）</option>
-        </select>
-      </div>
-    </div>
-
-    <div>
-      <label>字幕保留時間</label>
-      <select id="captionHold">
-        <option value="8">8 秒</option>
-        <option value="12" selected>12 秒（建議）</option>
-        <option value="20">20 秒</option>
-        <option value="30">30 秒</option>
-      </select>
-    </div>
-
-    <div class="toggle-row">
-      <div class="toggle-left">
-        <div class="toggle-title">Debug 資訊</div>
-        <div class="toggle-desc">顯示音量、音訊送出、字幕回傳狀態</div>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="debugMode">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <hr class="card-divider">
-
-    <!-- 翻譯提示詞 collapsible -->
-    <div class="collapsible-trigger" onclick="toggleSysPrompt()">
-      <div class="collapsible-left">
-        <div class="trigger-title">翻譯提示詞</div>
-        <div class="trigger-desc">字幕翻譯風格與規則</div>
-      </div>
-      <span class="collapsible-arrow" id="sysArrow">▼</span>
-    </div>
-    <div class="collapsible-body" id="sysBody">
-      <textarea class="sys-prompt" id="sysPrompt"></textarea>
     </div>
   </div>
 
@@ -220,15 +241,19 @@
 
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
-  <div class="debug-line" id="debugLine"></div>
+  <div class="status-lights" id="statusLights"></div>
   <div class="error-box" id="errorBox"></div>
 
   <div class="captions" id="captions" style="display:none">
     <div class="cap-label">原文</div>
-    <div class="prev-original" id="prevOriginal"></div>
+    <div class="hist-orig"    id="histOrig3"></div>
+    <div class="hist-orig h2" id="histOrig2"></div>
+    <div class="hist-orig h1" id="histOrig1"></div>
     <div class="original-text" id="originalText">—</div>
     <div class="cap-label">翻譯</div>
-    <div class="prev-translated" id="prevTranslated"></div>
+    <div class="hist-trans"    id="histTrans3"></div>
+    <div class="hist-trans h2" id="histTrans2"></div>
+    <div class="hist-trans h1" id="histTrans1"></div>
     <div class="translated-text" id="translatedText">—</div>
   </div>
 
@@ -253,21 +278,21 @@ const DEFAULT_SYS_PROMPT =
 2. 口語化：使用台灣自然口語，簡短直白，避免書面語腔調。
 3. 禁用中國用語（網絡→網路、視頻→影片、軟件→軟體、數據→資料）。
 4. 專有名詞保留：藝人名、歌名、品牌保留原文或常見中文譯名。
-5. 不加句號：句末不加「。」，保持字幕輕盈感。
+5. 不加全角句號「。」，保持字幕輕盈感；感嘆號「！」、問號「？」正常使用。
 6. 演唱會用語自然轉換：안코르→安可、화이팅→加油、오빠/언니視情況保留或翻譯。
 7. 忠實保留情緒：感嘆、呼喊、粗口直翻，不美化不刪減。
 8. 語句不完整時照樣翻，不補全、不猜測說話者意圖。
+9. 多人同時說話時，翻譯能辨識出的內容，其餘略過；不需標示說話者身份。
 </rules>`;
 
-// Gemini 3.5 Live Translate 費率（Preview 版實際計費請以 AI Studio 帳單為準）
-// Audio input $3.50/1M tokens；echoTargetLanguage:false 時音訊輸出可能不計費
-const RATE_INPUT_PER_M  = 3.50;
-const RATE_OUTPUT_PER_M = 21.00;
+const RATE_INPUT_PER_M       = 3.50;
+const RATE_OUTPUT_PER_M      = 21.00;
 const RATE_AUDIO_PER_MIN_USD = 0.0368;
-const USD_TWD = 32;
-const STABLE_FLUSH_MS = 1600;
-const PUNCT_FLUSH_MS = 700;
-const CAPTION_HISTORY_VERSION = '2';
+const USD_TWD                = 32;
+const STABLE_FLUSH_MS        = 1600;
+const PUNCT_FLUSH_MS         = 700;
+const CAPTION_HISTORY_VERSION = '3';
+const HIST_SIZE = 3;
 
 let liveSession   = null;
 let audioContext  = null;
@@ -275,27 +300,29 @@ let processor     = null;
 let micStream     = null;
 let running       = false;
 let timerInterval = null;
+let wakeLock      = null;
 
-let sessionStart    = 0;
-let totalInputTok   = 0;
-let totalOutputTok  = 0;
-let lastUsageSec    = 0;  // fallback: token-less time estimate
-let origBuffer      = '';
-let transBuffer     = '';
-let segFlushTimer   = null;
-let currentCostTwd  = 0;
-let costLimitTwd    = 0;
+let sessionStart      = 0;
+let totalInputTok     = 0;
+let totalOutputTok    = 0;
+let origBuffer        = '';
+let transBuffer       = '';
+let segFlushTimer     = null;
+let currentCostTwd    = 0;
+let costLimitTwd      = 0;
 let autoStoppedByCost = false;
-let audioChunkCount = 0;
-let silentChunkCount = 0;
-let lastAudioLevel  = 0;
-let lastInputAt     = 0;
-let lastOutputAt    = 0;
-let captionHoldMs   = 12000;
-let prevOriginalTimer = null;
-let prevTranslatedTimer = null;
-let lastImmediateOriginal = '';
+let audioChunkCount   = 0;
+let silentChunkCount  = 0;
+let lastAudioLevel    = 0;
+let lastInputAt       = 0;
+let lastOutputAt      = 0;
+let captionHoldMs     = 12000;
+let lastImmediateOriginal   = '';
 let lastImmediateTranslated = '';
+
+// History queues: index 0 = newest, index HIST_SIZE-1 = oldest
+let origHistQueue  = [];
+let transHistQueue = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────
 window.onload = () => {
@@ -305,20 +332,17 @@ window.onload = () => {
     localStorage.setItem('ai_segment', 'false');
     localStorage.setItem('caption_history_version', CAPTION_HISTORY_VERSION);
   }
-  const savedSeg    = localStorage.getItem('ai_segment') === 'true';
-  const savedNoise  = localStorage.getItem('noise_suppression');
-  const savedDebug  = localStorage.getItem('debug_mode') === 'true';
-  const savedLimit  = localStorage.getItem('cost_limit_twd');
-  const savedHold   = localStorage.getItem('caption_hold_sec');
+  const savedSeg   = localStorage.getItem('ai_segment') === 'true';
+  const savedNoise = localStorage.getItem('noise_suppression');
+  const savedLimit = localStorage.getItem('cost_limit_twd');
+  const savedHold  = localStorage.getItem('caption_hold_sec');
 
-  if (savedKey)    document.getElementById('apiKey').value = savedKey;
+  if (savedKey) document.getElementById('apiKey').value = savedKey;
   document.getElementById('sysPrompt').value = savedPrompt ?? DEFAULT_SYS_PROMPT;
   document.getElementById('aiSegment').checked = savedSeg;
   if (savedNoise != null) document.getElementById('noiseSuppression').value = savedNoise;
   if (savedLimit != null) document.getElementById('costLimit').value = savedLimit;
-  if (savedHold != null) document.getElementById('captionHold').value = savedHold;
-  document.getElementById('debugMode').checked = savedDebug;
-  refreshDebugVisibility();
+  if (savedHold  != null) document.getElementById('captionHold').value = savedHold;
   refreshSegDesc();
 };
 
@@ -336,9 +360,12 @@ document.getElementById('costLimit').addEventListener('change', e =>
   localStorage.setItem('cost_limit_twd', e.target.value));
 document.getElementById('captionHold').addEventListener('change', e =>
   localStorage.setItem('caption_hold_sec', e.target.value));
-document.getElementById('debugMode').addEventListener('change', () => {
-  localStorage.setItem('debug_mode', document.getElementById('debugMode').checked);
-  refreshDebugVisibility();
+
+// 回到前景時重新申請 Wake Lock
+document.addEventListener('visibilitychange', async () => {
+  if (running && document.visibilityState === 'visible' && !wakeLock) {
+    await requestWakeLock();
+  }
 });
 
 // ── UI helpers ────────────────────────────────────────────────────────────
@@ -349,10 +376,15 @@ function refreshSegDesc() {
     : '關閉：即時顯示，上一段字幕會保留';
 }
 
-function refreshDebugVisibility() {
-  document.getElementById('debugLine').style.display =
-    document.getElementById('debugMode').checked ? 'block' : 'none';
-}
+window.toggleAdvanced = function() {
+  const body    = document.getElementById('advancedBody');
+  const arrow   = document.getElementById('advancedArrow');
+  const trigger = document.getElementById('advancedTrigger');
+  const open    = !body.classList.contains('open');
+  body.classList.toggle('open', open);
+  arrow.classList.toggle('open', open);
+  trigger.classList.toggle('open', open);
+};
 
 window.toggleSysPrompt = function() {
   const body  = document.getElementById('sysBody');
@@ -364,19 +396,38 @@ window.toggleSysPrompt = function() {
 
 function setStatus(msg, type = '') {
   const el = document.getElementById('status');
-  el.textContent  = msg;
-  el.className    = 'status ' + type;
+  el.textContent = msg;
+  el.className   = 'status ' + type;
 }
 function showError(msg) {
   const b = document.getElementById('errorBox');
-  b.textContent    = msg;
-  b.style.display  = 'block';
+  b.textContent   = msg;
+  b.style.display = 'block';
 }
 function hideError() { document.getElementById('errorBox').style.display = 'none'; }
 
+// ── 狀態燈號 ──────────────────────────────────────────────────────────────
+function updateStatusLights() {
+  if (!running) return;
+  const micOk  = lastAudioLevel > 0.003;
+  const micTxt = micOk ? '🎤 有聲音' : '🔇 麥克風太安靜';
+
+  let transTxt, isWarn = false;
+  if (!lastOutputAt) {
+    transTxt = '📡 等待翻譯…';
+  } else {
+    const secs = Math.round((Date.now() - lastOutputAt) / 1000);
+    if (secs > 10) { transTxt = `⚠️ 超過 ${secs} 秒沒有翻譯`; isWarn = true; }
+    else           { transTxt = `📨 翻譯 ${secs} 秒前`; }
+  }
+
+  const el = document.getElementById('statusLights');
+  el.innerHTML = `${micTxt}&nbsp;&nbsp;｜&nbsp;&nbsp;<span${isWarn ? ' class="warn"' : ''}>${transTxt}</span>`;
+}
+
 // ── Segment flush ─────────────────────────────────────────────────────────
 function isPunctEnd(text) {
-  return /[。！？!?～~…]+\s*$/.test(text || '');
+  return /[！？!?～~…]+\s*$/.test(text || '');
 }
 
 function scheduleSegmentFlush(done) {
@@ -387,12 +438,10 @@ function scheduleSegmentFlush(done) {
 function flushSegment() {
   segFlushTimer = null;
   if (!origBuffer && !transBuffer) return;
-  // 目前句 → 升格為前一句（供來不及看時補讀）
-  if (origBuffer)  setPreviousCaption('original', origBuffer);
+  if (origBuffer)  setPreviousCaption('original',   origBuffer);
   if (transBuffer) setPreviousCaption('translated', transBuffer);
   origBuffer  = '';
   transBuffer = '';
-  // 清空目前句，等待下一句
   const origEl  = document.getElementById('originalText');
   const transEl = document.getElementById('translatedText');
   origEl.textContent  = '';
@@ -410,74 +459,80 @@ function shouldPromotePrevious(prev, next) {
   const newText = normalizeCaption(next);
   if (oldText.length < 2 || !newText || oldText === newText) return false;
   if (newText.includes(oldText) || oldText.includes(newText)) return false;
-
   let commonPrefix = 0;
   const max = Math.min(oldText.length, newText.length);
-  while (commonPrefix < max && oldText[commonPrefix] === newText[commonPrefix]) {
-    commonPrefix++;
-  }
+  while (commonPrefix < max && oldText[commonPrefix] === newText[commonPrefix]) commonPrefix++;
   return commonPrefix / Math.max(oldText.length, newText.length) < 0.45;
 }
 
+// ── History queue ─────────────────────────────────────────────────────────
+function renderHistQueue(type) {
+  const isOrig = type === 'original';
+  const q      = isOrig ? origHistQueue : transHistQueue;
+  const prefix = isOrig ? 'histOrig' : 'histTrans';
+  // slot 1 = newest (h1), slot 3 = oldest; q[0]=newest, q[2]=oldest
+  for (let i = 1; i <= HIST_SIZE; i++) {
+    document.getElementById(prefix + i).textContent = (q[i - 1]?.text) ?? '';
+  }
+}
+
 function setPreviousCaption(type, text) {
-  const isOriginal = type === 'original';
-  const el = document.getElementById(isOriginal ? 'prevOriginal' : 'prevTranslated');
-  el.textContent = text;
+  const isOrig = type === 'original';
+  const q      = isOrig ? origHistQueue : transHistQueue;
 
-  const oldTimer = isOriginal ? prevOriginalTimer : prevTranslatedTimer;
-  clearTimeout(oldTimer);
+  while (q.length >= HIST_SIZE) clearTimeout(q.pop().timer);
 
-  const newTimer = setTimeout(() => {
-    el.textContent = '';
+  const entry = { text, timer: null };
+  entry.timer = setTimeout(() => {
+    const idx = q.indexOf(entry);
+    if (idx !== -1) { q.splice(idx, 1); renderHistQueue(type); }
   }, captionHoldMs);
 
-  if (isOriginal) prevOriginalTimer = newTimer;
-  else prevTranslatedTimer = newTimer;
+  q.unshift(entry);
+  renderHistQueue(type);
+}
+
+function clearAllHistory() {
+  origHistQueue.forEach(e  => clearTimeout(e.timer));
+  transHistQueue.forEach(e => clearTimeout(e.timer));
+  origHistQueue  = [];
+  transHistQueue = [];
+  renderHistQueue('original');
+  renderHistQueue('translated');
 }
 
 function updateImmediateCaption(type, nextText) {
-  const isOriginal = type === 'original';
-  const currentEl = document.getElementById(isOriginal ? 'originalText' : 'translatedText');
-  const previousText = isOriginal ? lastImmediateOriginal : lastImmediateTranslated;
+  const isOrig    = type === 'original';
+  const currentEl = document.getElementById(isOrig ? 'originalText' : 'translatedText');
+  const prevText  = isOrig ? lastImmediateOriginal : lastImmediateTranslated;
 
-  if (shouldPromotePrevious(previousText, nextText)) {
-    setPreviousCaption(type, previousText);
-  }
-
+  if (shouldPromotePrevious(prevText, nextText)) setPreviousCaption(type, prevText);
   currentEl.textContent = nextText;
   currentEl.classList.remove('partial');
-
-  if (isOriginal) lastImmediateOriginal = nextText;
-  else lastImmediateTranslated = nextText;
+  if (isOrig) lastImmediateOriginal = nextText;
+  else        lastImmediateTranslated = nextText;
 }
 
 // ── Cost display ──────────────────────────────────────────────────────────
-function startTimer() {
-  timerInterval = setInterval(refreshCost, 1000);
-}
-function stopTimer() {
-  clearInterval(timerInterval);
-  timerInterval = null;
-}
+function startTimer() { timerInterval = setInterval(refreshCost, 1000); }
+function stopTimer()  { clearInterval(timerInterval); timerInterval = null; }
 
 function refreshCost() {
-  const secs    = Math.floor((Date.now() - sessionStart) / 1000);
-  const mm      = String(Math.floor(secs / 60)).padStart(2, '0');
-  const ss      = String(secs % 60).padStart(2, '0');
-  const timeStr = `${mm}:${ss}`;
+  const secs = Math.floor((Date.now() - sessionStart) / 1000);
+  const mm   = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss   = String(secs % 60).padStart(2, '0');
 
   let costStr;
   if (totalInputTok + totalOutputTok > 0) {
-    const usd = (totalInputTok / 1e6) * RATE_INPUT_PER_M
-              + (totalOutputTok / 1e6) * RATE_OUTPUT_PER_M;
+    const usd = (totalInputTok / 1e6) * RATE_INPUT_PER_M + (totalOutputTok / 1e6) * RATE_OUTPUT_PER_M;
     currentCostTwd = usd * USD_TWD;
-    costStr = `${timeStr} ｜ ${(totalInputTok + totalOutputTok).toLocaleString()} tokens ≈ NT$${currentCostTwd.toFixed(4)}`;
+    costStr = `${mm}:${ss} ｜ ${(totalInputTok + totalOutputTok).toLocaleString()} tokens ≈ NT$${currentCostTwd.toFixed(4)}`;
   } else {
     currentCostTwd = secs / 60 * RATE_AUDIO_PER_MIN_USD * USD_TWD;
-    costStr = `${timeStr} ｜ 付費估算 ≈ NT$${currentCostTwd.toFixed(4)}（帳單以 AI Studio 為準）`;
+    costStr = `${mm}:${ss} ｜ 付費估算 ≈ NT$${currentCostTwd.toFixed(4)}`;
   }
   document.getElementById('costDisplay').textContent = costStr;
-  refreshDebug();
+  updateStatusLights();
   enforceCostLimit();
 }
 
@@ -490,17 +545,16 @@ function enforceCostLimit() {
   window.stopTranslation();
 }
 
-function secondsAgo(ts) {
-  return ts ? `${Math.round((Date.now() - ts) / 1000)} 秒前` : '尚未收到';
+// ── Wake Lock ─────────────────────────────────────────────────────────────
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); }
+  catch (_) {}
 }
-
-function refreshDebug() {
-  if (!document.getElementById('debugMode').checked) return;
-  const silentRate = audioChunkCount
-    ? Math.round((silentChunkCount / audioChunkCount) * 100)
-    : 0;
-  document.getElementById('debugLine').textContent =
-    `音量 ${lastAudioLevel.toFixed(3)} ｜ 音訊 ${audioChunkCount} 包 ｜ 靜音 ${silentRate}% ｜ 原文 ${secondsAgo(lastInputAt)} ｜ 翻譯 ${secondsAgo(lastOutputAt)}`;
+async function releaseWakeLock() {
+  if (!wakeLock) return;
+  try { await wakeLock.release(); } catch (_) {}
+  wakeLock = null;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────
@@ -511,55 +565,50 @@ window.startTranslation = async function() {
   const targetLang  = document.getElementById('targetLang').value;
   const aiSegment   = document.getElementById('aiSegment').checked;
   const sysPromptTx = document.getElementById('sysPrompt').value.trim();
-  costLimitTwd = Number(document.getElementById('costLimit').value || 0);
+  costLimitTwd  = Number(document.getElementById('costLimit').value || 0);
   captionHoldMs = Number(document.getElementById('captionHold').value || 12) * 1000;
 
-  document.getElementById('startBtn').style.display   = 'none';
-  document.getElementById('stopBtn').style.display    = 'block';
-  document.getElementById('captions').style.display   = 'block';
-  document.getElementById('costLine').style.display   = 'block';
-  refreshDebugVisibility();
-  document.getElementById('originalText').textContent   = '—';
-  document.getElementById('translatedText').textContent = '—';
-  document.getElementById('prevOriginal').textContent   = '';
-  document.getElementById('prevTranslated').textContent = '';
+  document.getElementById('startBtn').style.display      = 'none';
+  document.getElementById('stopBtn').style.display       = 'block';
+  document.getElementById('captions').style.display      = 'block';
+  document.getElementById('costLine').style.display      = 'block';
+  document.getElementById('statusLights').style.display  = 'block';
+  document.getElementById('originalText').textContent    = '—';
+  document.getElementById('translatedText').textContent  = '—';
   document.getElementById('translatedText').classList.remove('partial');
   document.getElementById('originalText').classList.remove('partial');
+  clearAllHistory();
   hideError();
   setStatus('連線中…');
 
-  running      = true;
-  origBuffer   = '';
-  transBuffer  = '';
+  running           = true;
+  origBuffer        = '';
+  transBuffer       = '';
   clearTimeout(segFlushTimer); segFlushTimer = null;
-  clearTimeout(prevOriginalTimer); prevOriginalTimer = null;
-  clearTimeout(prevTranslatedTimer); prevTranslatedTimer = null;
-  lastImmediateOriginal = '';
+  lastImmediateOriginal   = '';
   lastImmediateTranslated = '';
-  totalInputTok  = 0;
-  totalOutputTok = 0;
-  currentCostTwd = 0;
+  totalInputTok     = 0;
+  totalOutputTok    = 0;
+  currentCostTwd    = 0;
   autoStoppedByCost = false;
-  audioChunkCount = 0;
-  silentChunkCount = 0;
-  lastAudioLevel = 0;
-  lastInputAt = 0;
-  lastOutputAt = 0;
-  sessionStart = Date.now();
+  audioChunkCount   = 0;
+  silentChunkCount  = 0;
+  lastAudioLevel    = 0;
+  lastInputAt       = 0;
+  lastOutputAt      = 0;
+  sessionStart      = Date.now();
   startTimer();
+  await requestWakeLock();
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-
     const config = {
       responseModalities: ['AUDIO'],
       inputAudioTranscription: {},
       outputAudioTranscription: {},
       translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: false }
     };
-    if (sysPromptTx) {
-      config.systemInstruction = { parts: [{ text: sysPromptTx }] };
-    }
+    if (sysPromptTx) config.systemInstruction = { parts: [{ text: sysPromptTx }] };
 
     liveSession = await ai.live.connect({
       model: 'gemini-3.5-live-translate-preview',
@@ -576,7 +625,6 @@ window.startTranslation = async function() {
         },
 
         onmessage: (message) => {
-          // Token tracking
           const u = message.usageMetadata;
           if (u) {
             if (u.promptTokenCount != null)     totalInputTok  = u.promptTokenCount;
@@ -593,50 +641,21 @@ window.startTranslation = async function() {
 
           if (aiSegment) {
             let contentChanged = false;
-            const inputText = content.inputTranscription?.text;
+            const inputText  = content.inputTranscription?.text;
             const outputText = content.outputTranscription?.text;
-            if (inputText && inputText !== origBuffer) {
-              origBuffer = inputText;
-              lastInputAt = Date.now();
-              contentChanged = true;
-            }
-            if (outputText && outputText !== transBuffer) {
-              transBuffer = outputText;
-              lastOutputAt = Date.now();
-              contentChanged = true;
-            }
+            if (inputText  && inputText  !== origBuffer)  { origBuffer  = inputText;  lastInputAt  = Date.now(); contentChanged = true; }
+            if (outputText && outputText !== transBuffer) { transBuffer = outputText; lastOutputAt = Date.now(); contentChanged = true; }
 
             if (contentChanged) {
-              // 即時顯示（半透明），讓用戶知道有在翻
-              if (origBuffer) {
-                const el = document.getElementById('originalText');
-                el.textContent = origBuffer;
-                el.classList.add('partial');
-              }
-              if (transBuffer) {
-                const el = document.getElementById('translatedText');
-                el.textContent = transBuffer;
-                el.classList.add('partial');
-              }
-              // 標點只作加速；主要靠「內容停止更新」自動收句，避免提示詞禁句號時卡住。
+              if (origBuffer)  { const el = document.getElementById('originalText');  el.textContent = origBuffer;  el.classList.add('partial'); }
+              if (transBuffer) { const el = document.getElementById('translatedText'); el.textContent = transBuffer; el.classList.add('partial'); }
               const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
               scheduleSegmentFlush(done);
             }
-
-            if (content.turnComplete) {
-              clearTimeout(segFlushTimer); segFlushTimer = null;
-              flushSegment();
-            }
+            if (content.turnComplete) { clearTimeout(segFlushTimer); segFlushTimer = null; flushSegment(); }
           } else {
-            // Immediate update
-            if (content.inputTranscription?.text) {
-              lastInputAt = Date.now();
-              updateImmediateCaption('original', content.inputTranscription.text);
-            }
-            if (content.outputTranscription?.text) {
-              lastOutputAt = Date.now();
-              updateImmediateCaption('translated', content.outputTranscription.text);
-            }
+            if (content.inputTranscription?.text)  { lastInputAt  = Date.now(); updateImmediateCaption('original',   content.inputTranscription.text); }
+            if (content.outputTranscription?.text) { lastOutputAt = Date.now(); updateImmediateCaption('translated', content.outputTranscription.text); }
           }
         },
 
@@ -706,10 +725,8 @@ async function startMic() {
     const bytes = new Uint8Array(i16.buffer);
     let bin = '';
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-
-    try {
-      liveSession.sendRealtimeInput({ audio: { data: btoa(bin), mimeType: 'audio/pcm;rate=16000' } });
-    } catch (_) {}
+    try { liveSession.sendRealtimeInput({ audio: { data: btoa(bin), mimeType: 'audio/pcm;rate=16000' } }); }
+    catch (_) {}
   };
 
   source.connect(processor);
@@ -721,17 +738,17 @@ window.stopTranslation = function() {
   running = false;
   stopTimer();
   clearTimeout(segFlushTimer); segFlushTimer = null;
-  clearTimeout(prevOriginalTimer); prevOriginalTimer = null;
-  clearTimeout(prevTranslatedTimer); prevTranslatedTimer = null;
-  if (processor)   { try { processor.disconnect(); }      catch(_){} processor   = null; }
-  if (audioContext){ try { audioContext.close(); }         catch(_){} audioContext = null; }
+  clearAllHistory();
+  releaseWakeLock();
+  document.getElementById('statusLights').style.display = 'none';
+  if (processor)   { try { processor.disconnect(); }   catch(_){} processor   = null; }
+  if (audioContext){ try { audioContext.close(); }      catch(_){} audioContext = null; }
   if (micStream)   { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-  if (liveSession) { try { liveSession.close(); }          catch(_){} liveSession = null; }
+  if (liveSession) { try { liveSession.close(); }       catch(_){} liveSession = null; }
 
   document.getElementById('startBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display  = 'none';
-  if (!document.getElementById('status').className.includes('error'))
-    setStatus('已停止');
+  if (!document.getElementById('status').className.includes('error')) setStatus('已停止');
 };
 </script>
 </body>

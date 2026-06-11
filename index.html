@@ -657,7 +657,7 @@ window.openFloatingCaption = async function() {
     alert('你的瀏覽器不支援懸浮視窗\n\n需要 iOS 15.4+ 或 Android Chrome 116+\n\n建議改用分割畫面：長按 Home 鍵進入多工，把翻譯視窗拖到上半部');
     return;
   }
-  if (!pipVideo || pipVideo.readyState === 0) {
+  if (!pipVideo) {
     alert('請先按「開始翻譯」再開啟懸浮字幕');
     return;
   }

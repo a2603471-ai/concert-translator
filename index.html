@@ -136,6 +136,14 @@
     .tip strong { color: #888; }
     .helper { font-size: 0.78rem; color: #555; text-align: center; margin-top: 12px; line-height: 1.6; }
     .helper a { color: #0a84ff; text-decoration: none; }
+    .floating-row { text-align: center; margin-bottom: 10px; display: none; }
+    .pip-btn {
+      background: #2c2c2e; color: #aaa;
+      border: 1px solid #3a3a3c; border-radius: 20px;
+      padding: 8px 18px; font-size: 0.82rem; cursor: pointer;
+    }
+    .pip-btn:active { background: #3a3a3c; }
+    .pip-btn.active { color: #30d158; border-color: #245c34; }
   </style>
 </head>
 <body>
@@ -239,6 +247,10 @@
   <button class="btn btn-start" id="startBtn" onclick="startTranslation()">▶ 開始翻譯</button>
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
 
+  <div class="floating-row" id="floatingRow">
+    <button class="pip-btn" id="pipBtn" onclick="openFloatingCaption()">🔲 懸浮字幕</button>
+  </div>
+
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
   <div class="status-lights" id="statusLights"></div>
@@ -302,6 +314,11 @@ let running       = false;
 let timerInterval = null;
 let wakeLock      = null;
 
+let pipCanvas     = null;
+let pipCtx        = null;
+let pipVideo      = null;
+let pipActive     = false;
+
 let sessionStart      = 0;
 let totalInputTok     = 0;
 let totalOutputTok    = 0;
@@ -353,6 +370,12 @@ document.getElementById('sysPrompt').addEventListener('input', e =>
 document.getElementById('aiSegment').addEventListener('change', () => {
   localStorage.setItem('ai_segment', document.getElementById('aiSegment').checked);
   refreshSegDesc();
+  if (running) {
+    clearTimeout(segFlushTimer); segFlushTimer = null;
+    origBuffer = ''; transBuffer = '';
+    document.getElementById('originalText').classList.remove('partial');
+    document.getElementById('translatedText').classList.remove('partial');
+  }
 });
 document.getElementById('noiseSuppression').addEventListener('change', e =>
   localStorage.setItem('noise_suppression', e.target.value));
@@ -448,6 +471,7 @@ function flushSegment() {
   transEl.textContent = '';
   origEl.classList.remove('partial');
   transEl.classList.remove('partial');
+  syncPiP('', '');
 }
 
 function normalizeCaption(text) {
@@ -509,8 +533,8 @@ function updateImmediateCaption(type, nextText) {
   if (shouldPromotePrevious(prevText, nextText)) setPreviousCaption(type, prevText);
   currentEl.textContent = nextText;
   currentEl.classList.remove('partial');
-  if (isOrig) lastImmediateOriginal = nextText;
-  else        lastImmediateTranslated = nextText;
+  if (isOrig) { lastImmediateOriginal   = nextText; syncPiP(nextText, undefined); }
+  else        { lastImmediateTranslated = nextText; syncPiP(undefined, nextText); }
 }
 
 // ── Cost display ──────────────────────────────────────────────────────────
@@ -557,6 +581,100 @@ async function releaseWakeLock() {
   wakeLock = null;
 }
 
+// ── Canvas PiP ────────────────────────────────────────────────────────────
+function wrapText(ctx, text, maxWidth) {
+  if (!text || text === '—') return [text];
+  const lines = [];
+  let line = '';
+  for (const char of text) {
+    const test = line + char;
+    if (ctx.measureText(test).width > maxWidth) {
+      if (line) lines.push(line);
+      line = char;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawPiPFrame(orig, trans) {
+  if (!pipCtx) return;
+  const W = 640, H = 240;
+  pipCtx.fillStyle = '#0d0d0d';
+  pipCtx.fillRect(0, 0, W, H);
+
+  pipCtx.font = '22px -apple-system, "Helvetica Neue", sans-serif';
+  pipCtx.fillStyle = '#666';
+  const origLines = wrapText(pipCtx, orig, W - 40);
+  origLines.slice(0, 2).forEach((l, i) => pipCtx.fillText(l, 20, 34 + i * 28));
+
+  const startY = 34 + Math.min(origLines.length, 2) * 28 + 18;
+  pipCtx.font = 'bold 44px -apple-system, "Helvetica Neue", sans-serif';
+  pipCtx.fillStyle = '#ffffff';
+  wrapText(pipCtx, trans, W - 40).slice(0, 2).forEach((l, i) => pipCtx.fillText(l, 20, startY + i * 54));
+}
+
+function syncPiP(orig, trans) {
+  if (!pipActive || !pipCtx) return;
+  const o = orig  !== undefined ? orig  : document.getElementById('originalText').textContent;
+  const t = trans !== undefined ? trans : document.getElementById('translatedText').textContent;
+  drawPiPFrame(o, t);
+}
+
+function initPiPCanvas() {
+  if (pipCanvas) return;
+  pipCanvas        = document.createElement('canvas');
+  pipCanvas.width  = 640;
+  pipCanvas.height = 240;
+  pipCtx = pipCanvas.getContext('2d');
+  drawPiPFrame('', '');
+
+  const stream = pipCanvas.captureStream(2);
+  pipVideo = document.createElement('video');
+  pipVideo.srcObject = stream;
+  pipVideo.muted     = true;
+  pipVideo.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+  document.body.appendChild(pipVideo);
+  pipVideo.play().catch(() => {});
+
+  pipVideo.addEventListener('leavepictureinpicture', () => {
+    pipActive = false;
+    const btn = document.getElementById('pipBtn');
+    if (btn) { btn.textContent = '🔲 懸浮字幕'; btn.classList.remove('active'); }
+  });
+}
+
+window.openFloatingCaption = async function() {
+  const supported = document.pictureInPictureEnabled &&
+    typeof HTMLCanvasElement.prototype.captureStream === 'function';
+  if (!supported) {
+    alert('你的瀏覽器不支援懸浮視窗\n\n需要 iOS 15.4+ 或 Android Chrome 116+\n\n建議改用分割畫面：長按 Home 鍵進入多工，把翻譯視窗拖到上半部');
+    return;
+  }
+  initPiPCanvas();
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+      pipActive = false;
+      const btn = document.getElementById('pipBtn');
+      btn.textContent = '🔲 懸浮字幕'; btn.classList.remove('active');
+    } else {
+      drawPiPFrame(
+        document.getElementById('originalText').textContent,
+        document.getElementById('translatedText').textContent
+      );
+      await pipVideo.requestPictureInPicture();
+      pipActive = true;
+      const btn = document.getElementById('pipBtn');
+      btn.textContent = '✕ 關閉懸浮'; btn.classList.add('active');
+    }
+  } catch (err) {
+    alert('無法開啟懸浮視窗：' + err.message);
+  }
+};
+
 // ── Main ──────────────────────────────────────────────────────────────────
 window.startTranslation = async function() {
   const apiKey = document.getElementById('apiKey').value.trim();
@@ -573,6 +691,7 @@ window.startTranslation = async function() {
   document.getElementById('captions').style.display      = 'block';
   document.getElementById('costLine').style.display      = 'block';
   document.getElementById('statusLights').style.display  = 'block';
+  document.getElementById('floatingRow').style.display    = 'block';
   document.getElementById('originalText').textContent    = '—';
   document.getElementById('translatedText').textContent  = '—';
   document.getElementById('translatedText').classList.remove('partial');
@@ -639,7 +758,8 @@ window.startTranslation = async function() {
           const content = message.serverContent;
           if (!content) return;
 
-          if (aiSegment) {
+          const aiSegNow = document.getElementById('aiSegment').checked;
+          if (aiSegNow) {
             let contentChanged = false;
             const inputText  = content.inputTranscription?.text;
             const outputText = content.outputTranscription?.text;
@@ -649,6 +769,7 @@ window.startTranslation = async function() {
             if (contentChanged) {
               if (origBuffer)  { const el = document.getElementById('originalText');  el.textContent = origBuffer;  el.classList.add('partial'); }
               if (transBuffer) { const el = document.getElementById('translatedText'); el.textContent = transBuffer; el.classList.add('partial'); }
+              syncPiP(origBuffer || '', transBuffer || '');
               const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
               scheduleSegmentFlush(done);
             }
@@ -741,6 +862,9 @@ window.stopTranslation = function() {
   clearAllHistory();
   releaseWakeLock();
   document.getElementById('statusLights').style.display = 'none';
+  document.getElementById('floatingRow').style.display  = 'none';
+  if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+  pipActive = false;
   if (processor)   { try { processor.disconnect(); }   catch(_){} processor   = null; }
   if (audioContext){ try { audioContext.close(); }      catch(_){} audioContext = null; }
   if (micStream)   { micStream.getTracks().forEach(t => t.stop()); micStream = null; }

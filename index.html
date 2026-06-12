@@ -81,6 +81,12 @@
       color: #888; font-size: 0.75rem; font-family: inherit;
       resize: vertical; outline: none; line-height: 1.55;
     }
+    .btn-reset-prompt {
+      display: block; margin-top: 8px; margin-left: auto;
+      padding: 6px 14px; border-radius: 8px; border: 1px solid #3a3a3c;
+      background: transparent; color: #666; font-size: 0.72rem; cursor: pointer;
+    }
+    .btn-reset-prompt:active { color: #aaa; border-color: #666; }
 
     .btn { width: 100%; padding: 17px; border-radius: 14px; border: none; font-size: 1.15rem; font-weight: 700; cursor: pointer; margin-bottom: 8px; }
     .btn-start    { background: #30d158; color: #000; }
@@ -262,6 +268,7 @@
         </div>
         <div class="collapsible-body" id="sysBody">
           <textarea class="sys-prompt" id="sysPrompt"></textarea>
+          <button class="btn-reset-prompt" onclick="resetSysPrompt()">↺ 重設為預設提示詞</button>
         </div>
       </div>
     </div>
@@ -309,11 +316,27 @@ import { GoogleGenAI } from 'https://esm.sh/@google/genai';
 const DEFAULT_SYS_PROMPT =
 `你是演唱會現場即時口譯員，負責將藝人說的話翻譯成台灣繁體中文。
 
+<artist_glossary>
+本場演唱會藝人名稱對照（翻譯時優先使用此表，不得自行改動）：
+
+MAMAMOO 藝名：
+- Solar / 솔라 → 頌樂
+- Moon Byul / 문별 → 玟星
+- Whee In / 휘인 → 輝人
+- Hwa Sa / 화사 → 華莎
+
+MAMAMOO 本名：
+- 김용선 / Kim Yong-sun → 金容仙
+- 문별이 / Moon Byul-yi → 文星伊
+- 정휘인 / Jung Whee-in → 丁輝人
+- 안혜진 / Ahn Hye-jin → 安惠真
+</artist_glossary>
+
 <rules>
 1. 只輸出翻譯結果，不加任何說明或開場白。
 2. 口語化：使用台灣自然口語，簡短直白，避免書面語腔調。
 3. 禁用中國用語（網絡→網路、視頻→影片、軟件→軟體、數據→資料）。
-4. 專有名詞保留：藝人名、歌名、品牌保留原文或常見中文譯名。
+4. 專有名詞：歌名保留韓文原文；藝人名優先查 artist_glossary，有對照就用中文譯名；查無對照時保留英文羅馬拼音，禁止自行以漢字音譯。
 5. 不加全角句號「。」，保持字幕輕盈感；感嘆號「！」、問號「？」正常使用。
 6. 演唱會用語自然轉換：안코르→安可、화이팅→加油、오빠/언니視情況保留或翻譯。
 7. 忠實保留情緒：感嘆、呼喊、粗口直翻，不美化不刪減。
@@ -411,6 +434,12 @@ document.getElementById('apiKey').addEventListener('input', e =>
   localStorage.setItem('gemini_key', e.target.value.trim()));
 document.getElementById('sysPrompt').addEventListener('input', e =>
   localStorage.setItem('sys_prompt', e.target.value));
+
+window.resetSysPrompt = function() {
+  if (!confirm('確定要重設為預設提示詞？目前的修改將會清除。')) return;
+  localStorage.removeItem('sys_prompt');
+  document.getElementById('sysPrompt').value = DEFAULT_SYS_PROMPT;
+};
 document.getElementById('aiSegment').addEventListener('change', () => {
   localStorage.setItem('ai_segment', document.getElementById('aiSegment').checked);
   refreshSegDesc();

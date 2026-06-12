@@ -148,6 +148,19 @@
     .tip strong { color: #888; }
     .helper { font-size: 0.78rem; color: #555; text-align: center; margin-top: 12px; line-height: 1.6; }
     .helper a { color: #0a84ff; text-decoration: none; }
+    .api-help-trigger {
+      font-size: 0.78rem; color: #0a84ff; cursor: pointer;
+      margin-top: -6px; margin-bottom: 12px; display: inline-block;
+    }
+    .api-help-body {
+      display: none; background: #2c2c2e; border-radius: 10px;
+      padding: 12px 14px; margin-bottom: 12px;
+    }
+    .api-help-body.open { display: block; }
+    .api-help-body ol { padding-left: 18px; }
+    .api-help-body li { font-size: 0.78rem; color: #aaa; line-height: 1.8; }
+    .api-help-body a { color: #0a84ff; text-decoration: none; }
+    .api-help-note { font-size: 0.72rem; color: #555; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -159,6 +172,17 @@
     <div class="card-title">設定</div>
     <label>Gemini API Key</label>
     <input type="password" id="apiKey" placeholder="AIzaSy…" />
+    <span class="api-help-trigger" onclick="toggleApiHelp()">❓ 不知道怎麼取得 API Key？</span>
+    <div class="api-help-body" id="apiHelpBody">
+      <ol>
+        <li>前往 <a href="https://aistudio.google.com/projects" target="_blank">Google AI Studio 專案頁</a></li>
+        <li>點「<strong>Create New</strong>」新增一個專案（不設定付費方式就是免費）</li>
+        <li>前往 <a href="https://aistudio.google.com/api-keys" target="_blank">API Keys 頁面</a></li>
+        <li>點「<strong>Create API Key</strong>」，選剛剛建立的專案</li>
+        <li>複製產生的 Key（開頭是 <strong>AIza</strong>），貼到上方欄位</li>
+      </ol>
+      <div class="api-help-note">Key 只需要設定一次，下次開啟會自動記住。</div>
+    </div>
     <div class="row">
       <div>
         <label>來源語言（藝人說的）</label>
@@ -416,7 +440,11 @@ window.onload = () => {
   const savedHotswap     = localStorage.getItem('hotswap_interval');
   const savedDisplayLines = localStorage.getItem('display_lines');
 
-  if (savedKey) document.getElementById('apiKey').value = savedKey;
+  if (savedKey) {
+    document.getElementById('apiKey').value = savedKey;
+  } else {
+    document.getElementById('apiHelpBody').classList.add('open');
+  }
   document.getElementById('sysPrompt').value = savedPrompt ?? DEFAULT_SYS_PROMPT;
   document.getElementById('aiSegment').checked = savedSeg;
   if (savedNoise        != null) document.getElementById('noiseSuppression').value = savedNoise;
@@ -434,6 +462,10 @@ document.getElementById('apiKey').addEventListener('input', e =>
   localStorage.setItem('gemini_key', e.target.value.trim()));
 document.getElementById('sysPrompt').addEventListener('input', e =>
   localStorage.setItem('sys_prompt', e.target.value));
+
+window.toggleApiHelp = function() {
+  document.getElementById('apiHelpBody').classList.toggle('open');
+};
 
 window.resetSysPrompt = function() {
   if (!confirm('確定要重設為預設提示詞？目前的修改將會清除。')) return;

@@ -81,9 +81,10 @@
       resize: vertical; outline: none; line-height: 1.55;
     }
 
-    .btn { width: 100%; padding: 17px; border-radius: 14px; border: none; font-size: 1.15rem; font-weight: 700; cursor: pointer; }
-    .btn-start { background: #30d158; color: #000; }
-    .btn-stop  { background: #ff453a; color: #fff; }
+    .btn { width: 100%; padding: 17px; border-radius: 14px; border: none; font-size: 1.15rem; font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+    .btn-start    { background: #30d158; color: #000; }
+    .btn-stop     { background: #ff453a; color: #fff; }
+    .btn-download { background: #1c1c1e; color: #0a84ff; border: 1px solid #0a84ff; font-size: 0.95rem; padding: 13px; }
 
     .status { text-align: center; padding: 8px 0 2px; font-size: 0.85rem; color: #666; }
     .status.active { color: #30d158; }
@@ -112,13 +113,17 @@
     .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
     .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; }
 
-    /* 字幕歷史（3 段，舊→新由上到下） */
+    /* 字幕歷史（最多 5 段，舊→新由上到下） */
     .hist-orig    { font-size: 0.72rem; color: #2e2e30; line-height: 1.5; word-break: break-all; }
     .hist-orig.h2 { font-size: 0.77rem; color: #3a3a3c; }
     .hist-orig.h1 { font-size: 0.82rem; color: #444;    margin-bottom: 4px; }
+    .hist-orig.h4 { font-size: 0.69rem; color: #252527; }
+    .hist-orig.h5 { font-size: 0.66rem; color: #1e1e20; }
     .hist-trans    { font-size: 0.95rem; color: #2e2e30; line-height: 1.45; word-break: break-all; }
     .hist-trans.h2 { font-size: 1.05rem; color: #3a3a3c; }
     .hist-trans.h1 { font-size: 1.25rem; color: #666;    margin-bottom: 14px; }
+    .hist-trans.h4 { font-size: 0.85rem; color: #252527; }
+    .hist-trans.h5 { font-size: 0.78rem; color: #1e1e20; }
 
     /* 目前句 */
     .original-text {
@@ -151,8 +156,9 @@
       <div>
         <label>來源語言（藝人說的）</label>
         <select id="sourceLang">
+          <option value="auto">🌐 自動偵測</option>
           <option value="ja">🇯🇵 日文</option>
-          <option value="ko" selected>🇰🇷 韓文</option>
+          <option value="ko">🇰🇷 韓文</option>
           <option value="en">🇺🇸 英文</option>
           <option value="zh-Hans">🇨🇳 中文（簡體）</option>
         </select>
@@ -209,14 +215,38 @@
           </div>
         </div>
 
-        <div>
-          <label>字幕保留時間</label>
-          <select id="captionHold">
-            <option value="8">8 秒</option>
-            <option value="12" selected>12 秒（建議）</option>
-            <option value="20">20 秒</option>
-            <option value="30">30 秒</option>
-          </select>
+        <div class="row">
+          <div>
+            <label>字幕保留時間</label>
+            <select id="captionHold">
+              <option value="8">8 秒</option>
+              <option value="12" selected>12 秒（建議）</option>
+              <option value="20">20 秒</option>
+              <option value="30">30 秒</option>
+            </select>
+          </div>
+          <div>
+            <label>歷史字幕段數</label>
+            <select id="displayLines">
+              <option value="1">1 段</option>
+              <option value="2">2 段</option>
+              <option value="3" selected>3 段（預設）</option>
+              <option value="4">4 段</option>
+              <option value="5">5 段</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>防延遲自動重連</label>
+            <select id="hotswapInterval">
+              <option value="0">關閉</option>
+              <option value="60">60 秒（高密度）</option>
+              <option value="90" selected>90 秒（建議）</option>
+              <option value="120">120 秒（低密度）</option>
+              <option value="150">150 秒</option>
+            </select>
+          </div>
         </div>
 
         <hr class="card-divider">
@@ -238,6 +268,7 @@
 
   <button class="btn btn-start" id="startBtn" onclick="startTranslation()">▶ 開始翻譯</button>
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
+  <button class="btn btn-download" id="downloadBtn" onclick="downloadTranscript()" style="display:none">⬇ 下載逐字稿</button>
 
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
@@ -246,11 +277,15 @@
 
   <div class="captions" id="captions" style="display:none">
     <div class="cap-label">原文</div>
+    <div class="hist-orig h5" id="histOrig5" style="display:none"></div>
+    <div class="hist-orig h4" id="histOrig4" style="display:none"></div>
     <div class="hist-orig"    id="histOrig3"></div>
     <div class="hist-orig h2" id="histOrig2"></div>
     <div class="hist-orig h1" id="histOrig1"></div>
     <div class="original-text" id="originalText">—</div>
     <div class="cap-label">翻譯</div>
+    <div class="hist-trans h5" id="histTrans5" style="display:none"></div>
+    <div class="hist-trans h4" id="histTrans4" style="display:none"></div>
     <div class="hist-trans"    id="histTrans3"></div>
     <div class="hist-trans h2" id="histTrans2"></div>
     <div class="hist-trans h1" id="histTrans1"></div>
@@ -271,7 +306,7 @@
 import { GoogleGenAI } from 'https://esm.sh/@google/genai';
 
 const DEFAULT_SYS_PROMPT =
-`你是演唱會現場即時口譯員，負責將韓文與英文翻譯成台灣繁體中文。
+`你是演唱會現場即時口譯員，負責將藝人說的話翻譯成台灣繁體中文。
 
 <rules>
 1. 只輸出翻譯結果，不加任何說明或開場白。
@@ -292,7 +327,8 @@ const USD_TWD                = 32;
 const STABLE_FLUSH_MS        = 1600;
 const PUNCT_FLUSH_MS         = 700;
 const CAPTION_HISTORY_VERSION = '3';
-const HIST_SIZE = 3;
+const MAX_HIST_SIZE = 5;
+let histSize = 3;
 
 let liveSession   = null;
 let audioContext  = null;
@@ -301,7 +337,6 @@ let micStream     = null;
 let running       = false;
 let timerInterval = null;
 let wakeLock      = null;
-
 
 let sessionStart      = 0;
 let totalInputTok     = 0;
@@ -321,9 +356,17 @@ let captionHoldMs     = 12000;
 let lastImmediateOriginal   = '';
 let lastImmediateTranslated = '';
 
-// History queues: index 0 = newest, index HIST_SIZE-1 = oldest
+// History queues: index 0 = newest, index histSize-1 = oldest
 let origHistQueue  = [];
 let transHistQueue = [];
+
+// ── 新功能：逐字稿、熱切換 ─────────────────────────────────────────────────
+let transcriptLog     = [];  // { time, orig, trans }
+let hotswapTimer      = null;
+let hotswapIntervalMs = 0;
+let isHotswapping     = false;
+let currentAi         = null;
+let currentConfig     = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────
 window.onload = () => {
@@ -333,17 +376,25 @@ window.onload = () => {
     localStorage.setItem('ai_segment', 'false');
     localStorage.setItem('caption_history_version', CAPTION_HISTORY_VERSION);
   }
-  const savedSeg   = localStorage.getItem('ai_segment') === 'true';
-  const savedNoise = localStorage.getItem('noise_suppression');
-  const savedLimit = localStorage.getItem('cost_limit_twd');
-  const savedHold  = localStorage.getItem('caption_hold_sec');
+  const savedSeg      = localStorage.getItem('ai_segment') === 'true';
+  const savedNoise    = localStorage.getItem('noise_suppression');
+  const savedLimit    = localStorage.getItem('cost_limit_twd');
+  const savedHold     = localStorage.getItem('caption_hold_sec');
+  const savedSrcLang     = localStorage.getItem('source_lang');
+  const savedHotswap     = localStorage.getItem('hotswap_interval');
+  const savedDisplayLines = localStorage.getItem('display_lines');
 
   if (savedKey) document.getElementById('apiKey').value = savedKey;
   document.getElementById('sysPrompt').value = savedPrompt ?? DEFAULT_SYS_PROMPT;
   document.getElementById('aiSegment').checked = savedSeg;
-  if (savedNoise != null) document.getElementById('noiseSuppression').value = savedNoise;
-  if (savedLimit != null) document.getElementById('costLimit').value = savedLimit;
-  if (savedHold  != null) document.getElementById('captionHold').value = savedHold;
+  if (savedNoise        != null) document.getElementById('noiseSuppression').value = savedNoise;
+  if (savedLimit        != null) document.getElementById('costLimit').value = savedLimit;
+  if (savedHold         != null) document.getElementById('captionHold').value = savedHold;
+  if (savedSrcLang      != null) document.getElementById('sourceLang').value = savedSrcLang;
+  if (savedHotswap      != null) document.getElementById('hotswapInterval').value = savedHotswap;
+  if (savedDisplayLines != null) document.getElementById('displayLines').value = savedDisplayLines;
+  histSize = Number(document.getElementById('displayLines').value);
+  updateHistSlotVisibility();
   refreshSegDesc();
 };
 
@@ -367,6 +418,15 @@ document.getElementById('costLimit').addEventListener('change', e =>
   localStorage.setItem('cost_limit_twd', e.target.value));
 document.getElementById('captionHold').addEventListener('change', e =>
   localStorage.setItem('caption_hold_sec', e.target.value));
+document.getElementById('sourceLang').addEventListener('change', e =>
+  localStorage.setItem('source_lang', e.target.value));
+document.getElementById('hotswapInterval').addEventListener('change', e =>
+  localStorage.setItem('hotswap_interval', e.target.value));
+document.getElementById('displayLines').addEventListener('change', e => {
+  localStorage.setItem('display_lines', e.target.value);
+  histSize = Number(e.target.value);
+  updateHistSlotVisibility();
+});
 
 // 回到前景時重新申請 Wake Lock
 document.addEventListener('visibilitychange', async () => {
@@ -445,6 +505,16 @@ function scheduleSegmentFlush(done) {
 function flushSegment() {
   segFlushTimer = null;
   if (!origBuffer && !transBuffer) return;
+
+  // 記錄逐字稿
+  if (transBuffer) {
+    transcriptLog.push({
+      time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      orig: origBuffer,
+      trans: transBuffer
+    });
+  }
+
   if (origBuffer)  setPreviousCaption('original',   origBuffer);
   if (transBuffer) setPreviousCaption('translated', transBuffer);
   origBuffer  = '';
@@ -472,14 +542,25 @@ function shouldPromotePrevious(prev, next) {
   return commonPrefix / Math.max(oldText.length, newText.length) < 0.45;
 }
 
+// ── History slot visibility ───────────────────────────────────────────────
+function updateHistSlotVisibility() {
+  for (let i = 1; i <= MAX_HIST_SIZE; i++) {
+    const show = i <= histSize;
+    ['histOrig', 'histTrans'].forEach(prefix => {
+      const el = document.getElementById(prefix + i);
+      if (el) el.style.display = show ? '' : 'none';
+    });
+  }
+}
+
 // ── History queue ─────────────────────────────────────────────────────────
 function renderHistQueue(type) {
   const isOrig = type === 'original';
   const q      = isOrig ? origHistQueue : transHistQueue;
   const prefix = isOrig ? 'histOrig' : 'histTrans';
-  // slot 1 = newest (h1), slot 3 = oldest; q[0]=newest, q[2]=oldest
-  for (let i = 1; i <= HIST_SIZE; i++) {
-    document.getElementById(prefix + i).textContent = (q[i - 1]?.text) ?? '';
+  for (let i = 1; i <= MAX_HIST_SIZE; i++) {
+    const el = document.getElementById(prefix + i);
+    if (el) el.textContent = (q[i - 1]?.text) ?? '';
   }
 }
 
@@ -487,7 +568,7 @@ function setPreviousCaption(type, text) {
   const isOrig = type === 'original';
   const q      = isOrig ? origHistQueue : transHistQueue;
 
-  while (q.length >= HIST_SIZE) clearTimeout(q.pop().timer);
+  while (q.length >= histSize) clearTimeout(q.pop().timer);
 
   const entry = { text, timer: null };
   entry.timer = setTimeout(() => {
@@ -513,7 +594,17 @@ function updateImmediateCaption(type, nextText) {
   const currentEl = document.getElementById(isOrig ? 'originalText' : 'translatedText');
   const prevText  = isOrig ? lastImmediateOriginal : lastImmediateTranslated;
 
-  if (shouldPromotePrevious(prevText, nextText)) setPreviousCaption(type, prevText);
+  if (shouldPromotePrevious(prevText, nextText)) {
+    setPreviousCaption(type, prevText);
+    // 記錄逐字稿（翻譯確認時才記，避免重複）
+    if (!isOrig && prevText) {
+      transcriptLog.push({
+        time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        orig: lastImmediateOriginal,
+        trans: prevText
+      });
+    }
+  }
   currentEl.textContent = nextText;
   currentEl.classList.remove('partial');
   if (isOrig) { lastImmediateOriginal   = nextText; }
@@ -564,21 +655,148 @@ async function releaseWakeLock() {
   wakeLock = null;
 }
 
+// ── Session callbacks ─────────────────────────────────────────────────────
+function handleMessage(message) {
+  const u = message.usageMetadata;
+  if (u) {
+    if (u.promptTokenCount != null)     totalInputTok  = u.promptTokenCount;
+    if (u.candidatesTokenCount != null) totalOutputTok = u.candidatesTokenCount;
+    if (u.totalTokenCount != null && u.promptTokenCount == null) {
+      totalInputTok  = Math.round(u.totalTokenCount * 0.85);
+      totalOutputTok = Math.round(u.totalTokenCount * 0.15);
+    }
+    refreshCost();
+  }
+
+  const content = message.serverContent;
+  if (!content) return;
+
+  const aiSegNow = document.getElementById('aiSegment').checked;
+  if (aiSegNow) {
+    let contentChanged = false;
+    const inputText  = content.inputTranscription?.text;
+    const outputText = content.outputTranscription?.text;
+    if (inputText  && inputText  !== origBuffer)  { origBuffer  = inputText;  lastInputAt  = Date.now(); contentChanged = true; }
+    if (outputText && outputText !== transBuffer) { transBuffer = outputText; lastOutputAt = Date.now(); contentChanged = true; }
+
+    if (contentChanged) {
+      if (origBuffer)  { const el = document.getElementById('originalText');  el.textContent = origBuffer;  el.classList.add('partial'); }
+      if (transBuffer) { const el = document.getElementById('translatedText'); el.textContent = transBuffer; el.classList.add('partial'); }
+      const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
+      scheduleSegmentFlush(done);
+    }
+    if (content.turnComplete) { clearTimeout(segFlushTimer); segFlushTimer = null; flushSegment(); }
+  } else {
+    if (content.inputTranscription?.text)  { lastInputAt  = Date.now(); updateImmediateCaption('original',   content.inputTranscription.text); }
+    if (content.outputTranscription?.text) { lastOutputAt = Date.now(); updateImmediateCaption('translated', content.outputTranscription.text); }
+  }
+}
+
+function handleError(e) {
+  if (isHotswapping) return;
+  showError('連線錯誤：' + (e?.message || JSON.stringify(e)));
+  setStatus('連線錯誤', 'error');
+  window.stopTranslation();
+}
+
+function handleClose(e) {
+  if (isHotswapping) return; // 熱切換主動關閉，忽略
+  if (running) {
+    const reason = e?.reason || '';
+    showError('連線中斷' + (reason ? `：${reason}` : '（原因不明）'));
+    setStatus('連線中斷', 'error');
+    window.stopTranslation();
+  }
+}
+
+// ── Connect session（初次 + 熱切換共用）────────────────────────────────────
+async function connectSession(isReconnect) {
+  const session = await currentAi.live.connect({
+    model: 'gemini-3.5-live-translate-preview',
+    config: currentConfig,
+    callbacks: {
+      onopen: async () => {
+        if (isReconnect) {
+          isHotswapping = false;
+          setStatus('● 翻譯中', 'active');
+        } else {
+          setStatus('● 翻譯中', 'active');
+          try { await startMic(); }
+          catch (err) {
+            showError('麥克風錯誤：' + err.message);
+            setStatus('麥克風失敗', 'error');
+            window.stopTranslation();
+          }
+        }
+      },
+      onmessage: handleMessage,
+      onerror:   handleError,
+      onclose:   handleClose
+    }
+  });
+  return session;
+}
+
+// ── 熱切換重連 ────────────────────────────────────────────────────────────
+async function hotswapReconnect() {
+  if (!running || !currentAi) return;
+  isHotswapping = true;
+  setStatus('重連中…', '');
+
+  const oldSession = liveSession;
+  liveSession = null; // 讓 mic processor 暫停發送
+  try { oldSession?.close(); } catch(_) {}
+
+  await new Promise(r => setTimeout(r, 300));
+
+  try {
+    liveSession = await connectSession(true);
+  } catch (err) {
+    isHotswapping = false;
+    showError('重連失敗：' + err.message);
+    setStatus('重連失敗', 'error');
+    window.stopTranslation();
+  }
+}
+
+// ── 下載逐字稿 ────────────────────────────────────────────────────────────
+window.downloadTranscript = function() {
+  if (transcriptLog.length === 0) return;
+  const date = new Date().toLocaleDateString('zh-TW');
+  const lines = [`演唱會即時翻譯逐字稿`, `日期：${date}`, `共 ${transcriptLog.length} 段`, '', ''];
+  for (const entry of transcriptLog) {
+    lines.push(`[${entry.time}]`);
+    if (entry.orig) lines.push(`原文：${entry.orig}`);
+    lines.push(`翻譯：${entry.trans}`);
+    lines.push('');
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `逐字稿_${date.replace(/\//g, '-')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
 // ── Main ──────────────────────────────────────────────────────────────────
 window.startTranslation = async function() {
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { setStatus('請先填入 Gemini API Key', 'error'); return; }
 
+  const sourceLang  = document.getElementById('sourceLang').value;
   const targetLang  = document.getElementById('targetLang').value;
   const aiSegment   = document.getElementById('aiSegment').checked;
   const sysPromptTx = document.getElementById('sysPrompt').value.trim();
-  costLimitTwd  = Number(document.getElementById('costLimit').value || 0);
-  captionHoldMs = Number(document.getElementById('captionHold').value || 12) * 1000;
+  costLimitTwd      = Number(document.getElementById('costLimit').value || 0);
+  captionHoldMs     = Number(document.getElementById('captionHold').value || 12) * 1000;
+  hotswapIntervalMs = Number(document.getElementById('hotswapInterval').value || 0) * 1000;
 
   document.getElementById('startBtn').style.display      = 'none';
   document.getElementById('stopBtn').style.display       = 'block';
+  document.getElementById('downloadBtn').style.display   = 'none';
   document.getElementById('captions').style.display      = 'block';
+  setTimeout(() => document.getElementById('captions').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   document.getElementById('costLine').style.display      = 'block';
   document.getElementById('statusLights').style.display  = 'block';
   document.getElementById('originalText').textContent    = '—';
@@ -604,85 +822,32 @@ window.startTranslation = async function() {
   lastAudioLevel    = 0;
   lastInputAt       = 0;
   lastOutputAt      = 0;
+  transcriptLog     = [];
   sessionStart      = Date.now();
   startTimer();
   await requestWakeLock();
 
+  // 啟動熱切換計時器
+  if (hotswapIntervalMs > 0) {
+    hotswapTimer = setInterval(hotswapReconnect, hotswapIntervalMs);
+  }
+
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const config = {
+    currentAi = new GoogleGenAI({ apiKey });
+
+    const inputTranscriptionConfig = sourceLang === 'auto'
+      ? {}
+      : { languageCode: sourceLang };
+
+    currentConfig = {
       responseModalities: ['AUDIO'],
-      inputAudioTranscription: {},
+      inputAudioTranscription: inputTranscriptionConfig,
       outputAudioTranscription: {},
       translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: false }
     };
-    if (sysPromptTx) config.systemInstruction = { parts: [{ text: sysPromptTx }] };
+    if (sysPromptTx) currentConfig.systemInstruction = { parts: [{ text: sysPromptTx }] };
 
-    liveSession = await ai.live.connect({
-      model: 'gemini-3.5-live-translate-preview',
-      config,
-      callbacks: {
-        onopen: async () => {
-          setStatus('● 翻譯中', 'active');
-          try { await startMic(); }
-          catch (err) {
-            showError('麥克風錯誤：' + err.message);
-            setStatus('麥克風失敗', 'error');
-            window.stopTranslation();
-          }
-        },
-
-        onmessage: (message) => {
-          const u = message.usageMetadata;
-          if (u) {
-            if (u.promptTokenCount != null)     totalInputTok  = u.promptTokenCount;
-            if (u.candidatesTokenCount != null) totalOutputTok = u.candidatesTokenCount;
-            if (u.totalTokenCount != null && u.promptTokenCount == null) {
-              totalInputTok  = Math.round(u.totalTokenCount * 0.85);
-              totalOutputTok = Math.round(u.totalTokenCount * 0.15);
-            }
-            refreshCost();
-          }
-
-          const content = message.serverContent;
-          if (!content) return;
-
-          const aiSegNow = document.getElementById('aiSegment').checked;
-          if (aiSegNow) {
-            let contentChanged = false;
-            const inputText  = content.inputTranscription?.text;
-            const outputText = content.outputTranscription?.text;
-            if (inputText  && inputText  !== origBuffer)  { origBuffer  = inputText;  lastInputAt  = Date.now(); contentChanged = true; }
-            if (outputText && outputText !== transBuffer) { transBuffer = outputText; lastOutputAt = Date.now(); contentChanged = true; }
-
-            if (contentChanged) {
-              if (origBuffer)  { const el = document.getElementById('originalText');  el.textContent = origBuffer;  el.classList.add('partial'); }
-              if (transBuffer) { const el = document.getElementById('translatedText'); el.textContent = transBuffer; el.classList.add('partial'); }
-              const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
-              scheduleSegmentFlush(done);
-            }
-            if (content.turnComplete) { clearTimeout(segFlushTimer); segFlushTimer = null; flushSegment(); }
-          } else {
-            if (content.inputTranscription?.text)  { lastInputAt  = Date.now(); updateImmediateCaption('original',   content.inputTranscription.text); }
-            if (content.outputTranscription?.text) { lastOutputAt = Date.now(); updateImmediateCaption('translated', content.outputTranscription.text); }
-          }
-        },
-
-        onerror: (e) => {
-          showError('連線錯誤：' + (e?.message || JSON.stringify(e)));
-          setStatus('連線錯誤', 'error');
-          window.stopTranslation();
-        },
-        onclose: (e) => {
-          if (running) {
-            const reason = e?.reason || '';
-            showError('連線中斷' + (reason ? `：${reason}` : '（原因不明）'));
-            setStatus('連線中斷', 'error');
-            window.stopTranslation();
-          }
-        }
-      }
-    });
+    liveSession = await connectSession(false);
 
   } catch (err) {
     showError('連線失敗：' + err.message);
@@ -747,6 +912,7 @@ window.stopTranslation = function() {
   running = false;
   stopTimer();
   clearTimeout(segFlushTimer); segFlushTimer = null;
+  clearInterval(hotswapTimer); hotswapTimer = null;
   clearAllHistory();
   releaseWakeLock();
   document.getElementById('statusLights').style.display = 'none';
@@ -757,6 +923,13 @@ window.stopTranslation = function() {
 
   document.getElementById('startBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display  = 'none';
+
+  // 有逐字稿才顯示下載按鈕
+  if (transcriptLog.length > 0) {
+    document.getElementById('downloadBtn').style.display = 'block';
+    document.getElementById('downloadBtn').textContent = `⬇ 下載逐字稿（${transcriptLog.length} 段）`;
+  }
+
   if (!document.getElementById('status').className.includes('error')) setStatus('已停止');
 };
 </script>

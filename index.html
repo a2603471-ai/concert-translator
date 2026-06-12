@@ -2,10 +2,11 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>🎤 演唱會即時翻譯</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { touch-action: manipulation; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #0d0d0d; color: #fff;
@@ -240,9 +241,9 @@
           <div>
             <label>防延遲自動重連</label>
             <select id="hotswapInterval">
-              <option value="0">關閉</option>
+              <option value="0" selected>關閉</option>
               <option value="60">60 秒（高密度）</option>
-              <option value="90" selected>90 秒（建議）</option>
+              <option value="90">90 秒（建議）</option>
               <option value="120">120 秒（低密度）</option>
               <option value="150">150 秒</option>
             </select>
@@ -369,6 +370,14 @@ let currentAi         = null;
 let currentConfig     = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────
+// 強制重置 iOS 縮放（防止上次測試留下的放大狀態）
+{
+  const meta = document.querySelector('meta[name=viewport]');
+  const base = 'width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no';
+  meta.setAttribute('content', base + ', maximum-scale=1.0');
+  setTimeout(() => meta.setAttribute('content', base), 300);
+}
+
 window.onload = () => {
   const savedKey    = localStorage.getItem('gemini_key');
   const savedPrompt = localStorage.getItem('sys_prompt');
@@ -869,7 +878,7 @@ async function startMic() {
 
   const nativeRate = audioContext.sampleRate;
   const source     = audioContext.createMediaStreamSource(micStream);
-  const bufferSize = nextPow2(Math.round(nativeRate * 0.1));
+  const bufferSize = nextPow2(Math.round(nativeRate * 0.06));
   processor        = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
   processor.onaudioprocess = (e) => {

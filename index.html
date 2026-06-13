@@ -92,8 +92,6 @@
     .btn-start    { background: #30d158; color: #000; }
     .btn-stop     { background: #ff453a; color: #fff; }
     .btn-download { background: #1c1c1e; color: #0a84ff; border: 1px solid #0a84ff; font-size: 0.95rem; padding: 13px; }
-    .btn-pip-test { background: #1c1c1e; color: #bf5af2; border: 1px solid #bf5af2; font-size: 0.95rem; padding: 13px; }
-    .pip-result { text-align: center; padding: 10px 14px; font-size: 0.85rem; border-radius: 10px; background: #1c1c1e; margin-bottom: 8px; line-height: 1.5; word-break: break-all; }
 
     .status { text-align: center; padding: 8px 0 2px; font-size: 0.85rem; color: #666; }
     .status.active { color: #30d158; }
@@ -324,8 +322,7 @@
   <button class="btn btn-start" id="startBtn" onclick="startTranslation()">▶ 開始翻譯</button>
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
   <button class="btn btn-download" id="downloadBtn" onclick="downloadTranscript()" style="display:none">⬇ 下載逐字稿</button>
-  <button class="btn btn-pip-test" id="pipTestBtn" onclick="testPiP()">◻ 測試 PiP（畫中畫）</button>
-  <div class="pip-result" id="pipResult" style="display:none"></div>
+
 
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
@@ -1134,118 +1131,6 @@ async function startMic() {
 }
 
 // ── Stop ──────────────────────────────────────────────────────────────────
-// ── PiP 測試 ──────────────────────────────────────────────────────────────
-// 改在 touchstart 時才初始化，避免頁面載入自動 play 觸發 iOS 的 PiP 旗標
-let _pipCtx     = null;
-let _pipVideo   = null;
-let _pipInited  = false;
-let _pipReady   = false;
-let _pipPending = false;
-
-function _pipDrawFrame() {
-  if (!_pipCtx) return;
-  _pipCtx.fillStyle = '#111';
-  _pipCtx.fillRect(0, 0, 480, 160);
-  _pipCtx.fillStyle = '#ffffff';
-  _pipCtx.font = 'bold 38px -apple-system, sans-serif';
-  _pipCtx.textAlign = 'center';
-  _pipCtx.textBaseline = 'middle';
-  _pipCtx.fillText('翻譯測試文字', 240, 65);
-  _pipCtx.fillStyle = '#888888';
-  _pipCtx.font = '22px -apple-system, sans-serif';
-  _pipCtx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
-}
-
-function _initPipOnTouch() {
-  if (_pipInited) return;
-  _pipInited = true;
-  if (!('captureStream' in HTMLCanvasElement.prototype)) return;
-  if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) return;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 480;
-  canvas.height = 160;
-  _pipCtx = canvas.getContext('2d');
-  _pipDrawFrame();
-
-  _pipVideo = document.createElement('video');
-  _pipVideo.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
-  _pipVideo.setAttribute('playsinline', '');
-  _pipVideo.muted = true;
-  _pipVideo.srcObject = canvas.captureStream(5);
-  document.body.appendChild(_pipVideo);
-  _pipVideo.play().then(() => { _pipReady = true; }).catch(() => {});
-  setInterval(_pipDrawFrame, 250);
-}
-
-// touchstart 比 click 早觸發，讓 video 有時間進入 playing 狀態
-document.getElementById('pipTestBtn').addEventListener('touchstart', _initPipOnTouch, { passive: true });
-
-window.testPiP = function() {
-  const resultEl = document.getElementById('pipResult');
-  resultEl.style.display = 'block';
-  resultEl.style.color = '#888';
-
-  if (!('captureStream' in HTMLCanvasElement.prototype)) {
-    resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 不支援：canvas.captureStream()';
-    return;
-  }
-  if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) {
-    resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 不支援：requestPictureInPicture()';
-    return;
-  }
-  if (!_pipVideo) {
-    resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 初始化失敗（touchstart 未觸發？）';
-    return;
-  }
-
-  // 診斷資訊（方便 debug）
-  const diag = `rs:${_pipVideo.readyState} paused:${_pipVideo.paused} pipOn:${document.pictureInPictureEnabled} pipEl:${!!document.pictureInPictureElement}`;
-
-  if (!_pipReady) {
-    resultEl.style.color = '#ff9f0a';
-    resultEl.textContent = `影片尚未就緒，請再按一次 | ${diag}`;
-    return;
-  }
-  if (_pipPending) {
-    resultEl.style.color = '#ff9f0a';
-    resultEl.textContent = `PiP 請求處理中，請稍候 | ${diag}`;
-    return;
-  }
-
-  if (document.pictureInPictureElement) {
-    document.exitPictureInPicture();
-    resultEl.textContent = `已退出 PiP，請再按 | ${diag}`;
-    return;
-  }
-
-  resultEl.textContent = `嘗試中… | ${diag}`;
-  _pipPending = true;
-  const pipResetTimer = setTimeout(() => {
-    _pipPending = false;
-    if (resultEl.textContent.startsWith('嘗試中')) {
-      resultEl.style.color = '#ff9f0a';
-      resultEl.textContent = `逾時（iOS 未回應），請再按一次 | ${diag}`;
-    }
-  }, 3000);
-
-  _pipVideo.requestPictureInPicture()
-    .then(() => {
-      clearTimeout(pipResetTimer);
-      _pipPending = false;
-      resultEl.style.color = '#30d158';
-      resultEl.textContent = `✅ 成功！PiP 可行 | ${diag}`;
-    })
-    .catch(err => {
-      clearTimeout(pipResetTimer);
-      _pipPending = false;
-      resultEl.style.color = '#ff453a';
-      resultEl.textContent = `✗ (${err.name}) ${err.message} | ${diag}`;
-    });
-};
 
 window.stopTranslation = function() {
   running = false;

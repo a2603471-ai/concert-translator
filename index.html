@@ -191,7 +191,7 @@
     </div>
     <div id="addArtistForm" style="display:none; background:#111; border-radius:10px; padding:12px 14px; margin-bottom:12px;">
       <label>藝人名稱</label>
-      <input type="text" id="newArtistName" placeholder="例如：aespa" />
+      <input type="text" id="newArtistName" placeholder="例如：MAMAMOO" />
       <label>人名對照表</label>
       <div style="font-size:0.72rem; color:#555; margin-top:-2px; margin-bottom:6px;">格式：- 藝名 / 韓文 → 中文譯名，每行一個</div>
       <textarea id="newArtistGlossary" style="width:100%; height:140px; padding:10px 12px; border-radius:10px; border:1px solid #333; background:#2c2c2e; color:#aaa; font-size:0.75rem; font-family:inherit; resize:vertical; outline:none; line-height:1.55; margin-bottom:8px;" placeholder="範例（以 MAMAMOO 為例）：
@@ -445,15 +445,14 @@ function saveUserArtists(arr) {
   localStorage.setItem('user_artists', JSON.stringify(arr));
 }
 
-let lastArtistValue = '';
+let lastArtistValue = '__MAMAMOO__';
 
 function renderArtistSelect() {
   const sel = document.getElementById('artistPreset');
   const cur = sel.value;
   sel.innerHTML = '';
   const add = (text, val) => sel.add(new Option(text, val));
-  add('手動設定（不套用）', '');
-  add('MAMAMOO（內建）', '__MAMAMOO__');
+  add('MAMAMOO（預設）', '__MAMAMOO__');
   loadUserArtists().forEach((a, i) => add(a.name, `__user_${i}__`));
   add('＋ 新增藝人…', '__ADD__');
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
@@ -611,7 +610,6 @@ document.getElementById('artistPreset').addEventListener('change', function() {
   localStorage.setItem('selected_artist', val);
   const isUser = val.startsWith('__user_');
   document.getElementById('artistDeleteRow').style.display = isUser ? 'block' : 'none';
-  if (val === '') return;
   if (val === '__MAMAMOO__') { applyArtistGlossary(MAMAMOO_GLOSSARY); return; }
   if (isUser) {
     const idx = parseInt(val.replace('__user_', ''));
@@ -628,9 +626,9 @@ document.getElementById('artistDeleteBtn').addEventListener('click', function() 
   const users = loadUserArtists();
   users.splice(idx, 1);
   saveUserArtists(users);
-  document.getElementById('artistPreset').value = '';
-  lastArtistValue = '';
-  localStorage.setItem('selected_artist', '');
+  document.getElementById('artistPreset').value = '__MAMAMOO__';
+  lastArtistValue = '__MAMAMOO__';
+  localStorage.setItem('selected_artist', '__MAMAMOO__');
   document.getElementById('artistDeleteRow').style.display = 'none';
   renderArtistSelect();
 });

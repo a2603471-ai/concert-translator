@@ -1135,7 +1135,7 @@ async function startMic() {
 
 // ── Stop ──────────────────────────────────────────────────────────────────
 // ── PiP 測試 ──────────────────────────────────────────────────────────────
-window.testPiP = async function() {
+window.testPiP = function() {
   const resultEl = document.getElementById('pipResult');
   resultEl.style.display = 'block';
   resultEl.style.color = '#888';
@@ -1152,58 +1152,54 @@ window.testPiP = async function() {
     return;
   }
 
-  try {
-    // 1. 建立 canvas，畫測試文字
-    const canvas = document.createElement('canvas');
-    canvas.width = 480;
-    canvas.height = 160;
-    const ctx = canvas.getContext('2d');
+  // 1. 建立 canvas，畫測試文字
+  const canvas = document.createElement('canvas');
+  canvas.width = 480;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
 
-    function drawFrame() {
-      ctx.fillStyle = '#111';
-      ctx.fillRect(0, 0, 480, 160);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 38px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('翻譯測試文字', 240, 65);
-      ctx.fillStyle = '#888888';
-      ctx.font = '22px -apple-system, sans-serif';
-      ctx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
-    }
-    drawFrame();
-
-    // 2. captureStream 接到隱藏 video
-    const stream = canvas.captureStream(5);
-
-    let video = document.getElementById('_pipTestVideo');
-    if (!video) {
-      video = document.createElement('video');
-      video.id = '_pipTestVideo';
-      video.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
-      video.setAttribute('playsinline', '');
-      video.muted = true;
-      document.body.appendChild(video);
-    }
-    video.srcObject = stream;
-
-    // 3. play（PiP 前必須 playing）
-    await video.play();
-
-    // 持續更新 canvas（顯示時鐘確認畫面有動）
-    const frameTimer = setInterval(drawFrame, 250);
-    video.addEventListener('leavepictureinpicture', () => clearInterval(frameTimer), { once: true });
-
-    // 4. 呼叫 PiP
-    await video.requestPictureInPicture();
-
-    resultEl.style.color = '#30d158';
-    resultEl.textContent = '✅ 成功！canvas.captureStream() + PiP 可行，可以整合進翻譯功能';
-
-  } catch (err) {
-    resultEl.style.color = '#ff453a';
-    resultEl.textContent = `✗ 失敗（${err.name}）：${err.message}`;
+  function drawFrame() {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, 480, 160);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 38px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('翻譯測試文字', 240, 65);
+    ctx.fillStyle = '#888888';
+    ctx.font = '22px -apple-system, sans-serif';
+    ctx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
   }
+  drawFrame();
+
+  // 2. captureStream 接到隱藏 video
+  const stream = canvas.captureStream(5);
+
+  let video = document.getElementById('_pipTestVideo');
+  if (!video) {
+    video = document.createElement('video');
+    video.id = '_pipTestVideo';
+    video.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    document.body.appendChild(video);
+  }
+  video.srcObject = stream;
+
+  // 3+4. play() 和 requestPictureInPicture() 必須在同一個同步區塊呼叫，
+  //       不能 await play()，否則手勢鏈斷掉會 AbortError
+  video.play();
+  video.requestPictureInPicture()
+    .then(() => {
+      const frameTimer = setInterval(drawFrame, 250);
+      video.addEventListener('leavepictureinpicture', () => clearInterval(frameTimer), { once: true });
+      resultEl.style.color = '#30d158';
+      resultEl.textContent = '✅ 成功！canvas.captureStream() + PiP 可行，可以整合進翻譯功能';
+    })
+    .catch(err => {
+      resultEl.style.color = '#ff453a';
+      resultEl.textContent = `✗ 失敗（${err.name}）：${err.message}`;
+    });
 };
 
 window.stopTranslation = function() {

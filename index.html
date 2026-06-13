@@ -1224,14 +1224,23 @@ window.testPiP = function() {
 
   resultEl.textContent = `嘗試中… | ${diag}`;
   _pipPending = true;
+  const pipResetTimer = setTimeout(() => {
+    _pipPending = false;
+    if (resultEl.textContent.startsWith('嘗試中')) {
+      resultEl.style.color = '#ff9f0a';
+      resultEl.textContent = `逾時（iOS 未回應），請再按一次 | ${diag}`;
+    }
+  }, 3000);
 
   _pipVideo.requestPictureInPicture()
     .then(() => {
+      clearTimeout(pipResetTimer);
       _pipPending = false;
       resultEl.style.color = '#30d158';
       resultEl.textContent = `✅ 成功！PiP 可行 | ${diag}`;
     })
     .catch(err => {
+      clearTimeout(pipResetTimer);
       _pipPending = false;
       resultEl.style.color = '#ff453a';
       resultEl.textContent = `✗ (${err.name}) ${err.message} | ${diag}`;

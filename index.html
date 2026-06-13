@@ -163,51 +163,6 @@
     .api-help-body li { font-size: 0.78rem; color: #aaa; line-height: 1.8; }
     .api-help-body a { color: #0a84ff; text-decoration: none; }
     .api-help-note { font-size: 0.72rem; color: #555; margin-top: 8px; }
-    .btn-camera { background: #1c1c1e; color: #ffd60a; border: 1px solid #ffd60a; font-size: 0.95rem; padding: 13px; }
-
-    /* 相機模式 */
-    .camera-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 200; background: #000; display: none; overflow: hidden;
-    }
-    .camera-overlay.active { display: block; }
-    #cameraVideo {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      object-fit: cover;
-    }
-    .camera-top-bar {
-      position: absolute; top: 0; left: 0; right: 0;
-      padding: 50px 16px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(rgba(0,0,0,0.55), transparent);
-    }
-    .camera-status { font-size: 0.82rem; color: rgba(255,255,255,0.65); }
-    .camera-status.active { color: #30d158; }
-    .btn-camera-exit {
-      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 20px; color: #fff; font-size: 0.85rem;
-      padding: 7px 14px; cursor: pointer;
-    }
-    .btn-camera-record {
-      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 20px; color: rgba(255,255,255,0.8); font-size: 0.82rem;
-      padding: 7px 14px; cursor: pointer;
-    }
-    .btn-camera-record.recording { border-color: #ff453a; color: #ff453a; }
-    .camera-caption-bar {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 40px 20px 50px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.72));
-    }
-    .camera-orig {
-      font-size: 0.9rem; color: rgba(255,255,255,0.55);
-      line-height: 1.45; word-break: break-all; margin-bottom: 10px; min-height: 20px;
-    }
-    .camera-trans {
-      font-size: 2rem; font-weight: 700; color: #fff;
-      line-height: 1.35; word-break: break-all; min-height: 56px;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.9);
-    }
   </style>
 </head>
 <body>
@@ -369,7 +324,6 @@
   <button class="btn btn-start" id="startBtn" onclick="startTranslation()">▶ 開始翻譯</button>
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
   <button class="btn btn-download" id="downloadBtn" onclick="downloadTranscript()" style="display:none">⬇ 下載逐字稿</button>
-  <button class="btn btn-camera" id="cameraBtn" onclick="enterCameraMode()">📷 相機模式</button>
   <button class="btn btn-pip-test" id="pipTestBtn" onclick="testPiP()">◻ 測試 PiP（畫中畫）</button>
   <div class="pip-result" id="pipResult" style="display:none"></div>
 
@@ -469,10 +423,6 @@ let micStream     = null;
 let running       = false;
 let timerInterval = null;
 let wakeLock      = null;
-let cameraStream   = null;
-let mediaRecorder  = null;
-let recordedChunks = [];
-let cameraMode     = false;
 
 let sessionStart      = 0;
 let totalInputTok     = 0;
@@ -740,11 +690,6 @@ function setStatus(msg, type = '') {
   const el = document.getElementById('status');
   el.textContent = msg;
   el.className   = 'status ' + type;
-  if (cameraMode) {
-    const cs = document.getElementById('cameraStatus');
-    cs.textContent = msg;
-    cs.className   = 'camera-status' + (type === 'active' ? ' active' : '');
-  }
 }
 function showError(msg) {
   const b = document.getElementById('errorBox');
@@ -887,7 +832,6 @@ function updateImmediateCaption(type, nextText) {
   }
   currentEl.textContent = nextText;
   currentEl.classList.remove('partial');
-  updateCameraCaption(type, nextText);
   if (isOrig) { lastImmediateOriginal   = nextText; }
   else        { lastImmediateTranslated = nextText; }
 }
@@ -963,8 +907,6 @@ function handleMessage(message) {
     if (contentChanged) {
       if (origBuffer)  { const el = document.getElementById('originalText');  el.textContent = origBuffer;  el.classList.add('partial'); }
       if (transBuffer) { const el = document.getElementById('translatedText'); el.textContent = transBuffer; el.classList.add('partial'); }
-      if (origBuffer)  updateCameraCaption('original',    origBuffer);
-      if (transBuffer) updateCameraCaption('translated',  transBuffer);
       const done = isPunctEnd(transBuffer) || isPunctEnd(origBuffer);
       scheduleSegmentFlush(done);
     }
@@ -1194,9 +1136,11 @@ async function startMic() {
 // ── Stop ──────────────────────────────────────────────────────────────────
 // ── PiP 測試 ──────────────────────────────────────────────────────────────
 // 改在 touchstart 時才初始化，避免頁面載入自動 play 觸發 iOS 的 PiP 旗標
-let _pipCtx = null;
-let _pipVideo = null;
-let _pipInited = false;
+let _pipCtx     = null;
+let _pipVideo   = null;
+let _pipInited  = false;
+let _pipReady   = false;
+let _pipPending = false;
 
 function _pipDrawFrame() {
   if (!_pipCtx) return;
@@ -1230,7 +1174,7 @@ function _initPipOnTouch() {
   _pipVideo.muted = true;
   _pipVideo.srcObject = canvas.captureStream(5);
   document.body.appendChild(_pipVideo);
-  _pipVideo.play().catch(() => {});
+  _pipVideo.play().then(() => { _pipReady = true; }).catch(() => {});
   setInterval(_pipDrawFrame, 250);
 }
 
@@ -1261,6 +1205,17 @@ window.testPiP = function() {
   // 診斷資訊（方便 debug）
   const diag = `rs:${_pipVideo.readyState} paused:${_pipVideo.paused} pipOn:${document.pictureInPictureEnabled} pipEl:${!!document.pictureInPictureElement}`;
 
+  if (!_pipReady) {
+    resultEl.style.color = '#ff9f0a';
+    resultEl.textContent = `影片尚未就緒，請再按一次 | ${diag}`;
+    return;
+  }
+  if (_pipPending) {
+    resultEl.style.color = '#ff9f0a';
+    resultEl.textContent = `PiP 請求處理中，請稍候 | ${diag}`;
+    return;
+  }
+
   if (document.pictureInPictureElement) {
     document.exitPictureInPicture();
     resultEl.textContent = `已退出 PiP，請再按 | ${diag}`;
@@ -1268,102 +1223,20 @@ window.testPiP = function() {
   }
 
   resultEl.textContent = `嘗試中… | ${diag}`;
+  _pipPending = true;
 
   _pipVideo.requestPictureInPicture()
     .then(() => {
+      _pipPending = false;
       resultEl.style.color = '#30d158';
       resultEl.textContent = `✅ 成功！PiP 可行 | ${diag}`;
     })
     .catch(err => {
+      _pipPending = false;
       resultEl.style.color = '#ff453a';
       resultEl.textContent = `✗ (${err.name}) ${err.message} | ${diag}`;
     });
 };
-
-// ── 相機模式 ──────────────────────────────────────────────────────────────
-function updateCameraCaption(type, text) {
-  if (!cameraMode) return;
-  if (type === 'original') {
-    document.getElementById('cameraOrigText').textContent = text;
-  } else {
-    document.getElementById('cameraTransText').textContent = text || '—';
-  }
-}
-
-window.enterCameraMode = async function() {
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false
-    });
-    const video = document.getElementById('cameraVideo');
-    video.srcObject = cameraStream;
-    cameraMode = true;
-    document.getElementById('cameraOverlay').classList.add('active');
-    if (typeof MediaRecorder !== 'undefined') {
-      document.getElementById('cameraRecordBtn').style.display = '';
-    }
-    // 同步目前狀態列
-    const statusEl = document.getElementById('status');
-    const cs = document.getElementById('cameraStatus');
-    cs.textContent = statusEl.textContent;
-    cs.className   = 'camera-status' + (statusEl.className.includes('active') ? ' active' : '');
-  } catch (err) {
-    alert('無法開啟相機：' + err.message);
-  }
-};
-
-window.exitCameraMode = function() {
-  stopCameraRecord();
-  cameraMode = false;
-  document.getElementById('cameraOverlay').classList.remove('active');
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(t => t.stop());
-    cameraStream = null;
-  }
-  document.getElementById('cameraVideo').srcObject = null;
-};
-
-window.toggleCameraRecord = function() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    stopCameraRecord();
-  } else {
-    startCameraRecord();
-  }
-};
-
-function startCameraRecord() {
-  if (!cameraStream) return;
-  recordedChunks = [];
-  try {
-    mediaRecorder = new MediaRecorder(cameraStream);
-    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      if (recordedChunks.length === 0) return;
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `錄影_${new Date().toLocaleDateString('zh-TW').replace(/\//g, '-')}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-    mediaRecorder.start();
-    const btn = document.getElementById('cameraRecordBtn');
-    btn.textContent = '⏹ 停止';
-    btn.classList.add('recording');
-  } catch (err) {
-    alert('無法錄影：' + err.message);
-  }
-}
-
-function stopCameraRecord() {
-  if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
-  mediaRecorder.stop();
-  const btn = document.getElementById('cameraRecordBtn');
-  btn.textContent = '⏺ 錄影';
-  btn.classList.remove('recording');
-}
 
 window.stopTranslation = function() {
   running = false;
@@ -1392,18 +1265,5 @@ window.stopTranslation = function() {
 };
 </script>
 
-<!-- 相機模式 overlay -->
-<div class="camera-overlay" id="cameraOverlay">
-  <video id="cameraVideo" autoplay playsinline muted></video>
-  <div class="camera-top-bar">
-    <button class="btn-camera-exit" onclick="exitCameraMode()">✕ 離開</button>
-    <span class="camera-status" id="cameraStatus">準備就緒</span>
-    <button class="btn-camera-record" id="cameraRecordBtn" onclick="toggleCameraRecord()" style="display:none">⏺ 錄影</button>
-  </div>
-  <div class="camera-caption-bar">
-    <div class="camera-orig" id="cameraOrigText"></div>
-    <div class="camera-trans" id="cameraTransText">—</div>
-  </div>
-</div>
 </body>
 </html>

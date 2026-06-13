@@ -92,6 +92,8 @@
     .btn-start    { background: #30d158; color: #000; }
     .btn-stop     { background: #ff453a; color: #fff; }
     .btn-download { background: #1c1c1e; color: #0a84ff; border: 1px solid #0a84ff; font-size: 0.95rem; padding: 13px; }
+    .btn-pip-test { background: #1c1c1e; color: #bf5af2; border: 1px solid #bf5af2; font-size: 0.95rem; padding: 13px; }
+    .pip-result { text-align: center; padding: 10px 14px; font-size: 0.85rem; border-radius: 10px; background: #1c1c1e; margin-bottom: 8px; line-height: 1.5; word-break: break-all; }
 
     .status { text-align: center; padding: 8px 0 2px; font-size: 0.85rem; color: #666; }
     .status.active { color: #30d158; }
@@ -322,6 +324,8 @@
   <button class="btn btn-start" id="startBtn" onclick="startTranslation()">▶ 開始翻譯</button>
   <button class="btn btn-stop"  id="stopBtn"  onclick="stopTranslation()" style="display:none">■ 停止</button>
   <button class="btn btn-download" id="downloadBtn" onclick="downloadTranscript()" style="display:none">⬇ 下載逐字稿</button>
+  <button class="btn btn-pip-test" id="pipTestBtn" onclick="testPiP()">◻ 測試 PiP（畫中畫）</button>
+  <div class="pip-result" id="pipResult" style="display:none"></div>
 
   <div class="status" id="status">準備就緒</div>
   <div class="cost-line" id="costLine">本次消耗：<span class="cost-val" id="costDisplay">計算中…</span></div>
@@ -1130,6 +1134,78 @@ async function startMic() {
 }
 
 // ── Stop ──────────────────────────────────────────────────────────────────
+// ── PiP 測試 ──────────────────────────────────────────────────────────────
+window.testPiP = async function() {
+  const resultEl = document.getElementById('pipResult');
+  resultEl.style.display = 'block';
+  resultEl.style.color = '#888';
+  resultEl.textContent = '測試中…';
+
+  if (!('captureStream' in HTMLCanvasElement.prototype)) {
+    resultEl.style.color = '#ff453a';
+    resultEl.textContent = '✗ 不支援：canvas.captureStream() 此瀏覽器沒有，PiP 方案不可行';
+    return;
+  }
+  if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) {
+    resultEl.style.color = '#ff453a';
+    resultEl.textContent = '✗ 不支援：requestPictureInPicture() 此瀏覽器沒有，PiP 方案不可行';
+    return;
+  }
+
+  try {
+    // 1. 建立 canvas，畫測試文字
+    const canvas = document.createElement('canvas');
+    canvas.width = 480;
+    canvas.height = 160;
+    const ctx = canvas.getContext('2d');
+
+    function drawFrame() {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, 480, 160);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 38px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('翻譯測試文字', 240, 65);
+      ctx.fillStyle = '#888888';
+      ctx.font = '22px -apple-system, sans-serif';
+      ctx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
+    }
+    drawFrame();
+
+    // 2. captureStream 接到隱藏 video
+    const stream = canvas.captureStream(5);
+
+    let video = document.getElementById('_pipTestVideo');
+    if (!video) {
+      video = document.createElement('video');
+      video.id = '_pipTestVideo';
+      video.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
+      video.setAttribute('playsinline', '');
+      video.muted = true;
+      document.body.appendChild(video);
+    }
+    video.srcObject = stream;
+
+    // 3. play（PiP 前必須 playing）
+    await video.play();
+
+    // 持續更新 canvas（顯示時鐘確認畫面有動）
+    const frameTimer = setInterval(drawFrame, 250);
+    video.addEventListener('leavepictureinpicture', () => clearInterval(frameTimer), { once: true });
+
+    // 4. 呼叫 PiP
+    await video.requestPictureInPicture();
+
+    resultEl.style.color = '#30d158';
+    resultEl.textContent = '✅ 成功！canvas.captureStream() + PiP 可行，可以整合進翻譯功能';
+
+  } catch (err) {
+    resultEl.style.color = '#ff453a';
+    resultEl.textContent = `✗ 失敗（${err.name}）：${err.message}`;
+  }
+};
+
 window.stopTranslation = function() {
   running = false;
   stopTimer();

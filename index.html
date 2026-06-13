@@ -1135,10 +1135,10 @@ async function startMic() {
 
 // ── Stop ──────────────────────────────────────────────────────────────────
 // ── PiP 測試 ──────────────────────────────────────────────────────────────
-// 頁面載入時就預先建好 canvas + video 並開始播，
-// 這樣按鈕按下時 video 已是 playing，requestPictureInPicture() 能直接呼叫
+// 改在 touchstart 時才初始化，避免頁面載入自動 play 觸發 iOS 的 PiP 旗標
 let _pipCtx = null;
 let _pipVideo = null;
+let _pipInited = false;
 
 function _pipDrawFrame() {
   if (!_pipCtx) return;
@@ -1154,7 +1154,9 @@ function _pipDrawFrame() {
   _pipCtx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
 }
 
-function _initPipVideo() {
+function _initPipOnTouch() {
+  if (_pipInited) return;
+  _pipInited = true;
   if (!('captureStream' in HTMLCanvasElement.prototype)) return;
   if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) return;
 
@@ -1170,45 +1172,53 @@ function _initPipVideo() {
   _pipVideo.muted = true;
   _pipVideo.srcObject = canvas.captureStream(5);
   document.body.appendChild(_pipVideo);
-
-  // muted + playsinline → iOS Safari 允許不需手勢直接 play
   _pipVideo.play().catch(() => {});
   setInterval(_pipDrawFrame, 250);
 }
 
-window.addEventListener('load', _initPipVideo);
+// touchstart 比 click 早觸發，讓 video 有時間進入 playing 狀態
+document.getElementById('pipTestBtn').addEventListener('touchstart', _initPipOnTouch, { passive: true });
 
 window.testPiP = function() {
   const resultEl = document.getElementById('pipResult');
   resultEl.style.display = 'block';
   resultEl.style.color = '#888';
-  resultEl.textContent = '測試中…';
 
   if (!('captureStream' in HTMLCanvasElement.prototype)) {
     resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 不支援：canvas.captureStream() 此瀏覽器沒有，PiP 方案不可行';
+    resultEl.textContent = '✗ 不支援：canvas.captureStream()';
     return;
   }
   if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) {
     resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 不支援：requestPictureInPicture() 此瀏覽器沒有，PiP 方案不可行';
+    resultEl.textContent = '✗ 不支援：requestPictureInPicture()';
     return;
   }
   if (!_pipVideo) {
     resultEl.style.color = '#ff453a';
-    resultEl.textContent = '✗ 初始化失敗，請重新整理頁面後再試';
+    resultEl.textContent = '✗ 初始化失敗（touchstart 未觸發？）';
     return;
   }
 
-  // video 已在背景 playing，直接在手勢鏈內同步呼叫 requestPictureInPicture()
+  // 診斷資訊（方便 debug）
+  const diag = `rs:${_pipVideo.readyState} paused:${_pipVideo.paused} pipOn:${document.pictureInPictureEnabled} pipEl:${!!document.pictureInPictureElement}`;
+
+  if (document.pictureInPictureElement) {
+    document.exitPictureInPicture();
+    resultEl.textContent = `已退出 PiP，請再按 | ${diag}`;
+    return;
+  }
+
+  resultEl.textContent = `嘗試中… | ${diag}`;
+
   _pipVideo.requestPictureInPicture()
     .then(() => {
       resultEl.style.color = '#30d158';
-      resultEl.textContent = '✅ 成功！canvas.captureStream() + PiP 可行，可以整合進翻譯功能';
+      resultEl.textContent = `✅ 成功！PiP 可行 | ${diag}`;
     })
     .catch(err => {
       resultEl.style.color = '#ff453a';
-      resultEl.textContent = `✗ 失敗（${err.name}）：${err.message}`;
+      resultEl.textContent = `✗ (${err.name}) ${err.message} | ${diag}`;
     });
 };
 

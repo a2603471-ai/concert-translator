@@ -18,7 +18,7 @@
     .card { background: #1c1c1e; border-radius: 16px; padding: 16px; margin-bottom: 14px; }
     .card-title { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
     label { font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 4px; }
-    input[type=password], select {
+    input[type=text], input[type=password], select {
       width: 100%; padding: 11px 12px; border-radius: 10px;
       border: 1px solid #333; background: #2c2c2e; color: #fff;
       font-size: 1rem; margin-bottom: 12px; outline: none;
@@ -175,13 +175,34 @@
     <span class="api-help-trigger" onclick="toggleApiHelp()">❓ 不知道怎麼取得 API Key？</span>
     <div class="api-help-body" id="apiHelpBody">
       <ol>
-        <li>前往 <a href="https://aistudio.google.com/projects" target="_blank">Google AI Studio 專案頁</a></li>
-        <li>點「<strong>Create New</strong>」新增一個專案（不設定付費方式就是免費）</li>
-        <li>前往 <a href="https://aistudio.google.com/api-keys" target="_blank">API Keys 頁面</a></li>
-        <li>點「<strong>Create API Key</strong>」，選剛剛建立的專案</li>
-        <li>複製產生的 Key（開頭是 <strong>AIza</strong>），貼到上方欄位</li>
+        <li>前往 <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio API Keys 頁面</a></li>
+        <li>登入 Google 帳號後，點「<strong>Create API key</strong>」</li>
+        <li>選擇或建立一個 Google Cloud 專案（免費）</li>
+        <li>複製產生的 Key，貼到上方欄位</li>
       </ol>
-      <div class="api-help-note">Key 只需要設定一次，下次開啟會自動記住。</div>
+      <div class="api-help-note">Key 只需要設定一次，下次開啟會自動記住。<br>
+      ⚠️ 若你的 Key 是 2025 年以前申請的，Google 將於 2026 年 9 月停用舊版 Key，屆時請重新申請新版 Key。<br>
+      <span style="color:#555;">步驟截至 2026 年 6 月有效，如介面有變動請搜尋「Google AI Studio API Key」。</span></div>
+    </div>
+    <label>藝人快速設定</label>
+    <select id="artistPreset"></select>
+    <div id="artistDeleteRow" style="display:none; margin-top:-8px; margin-bottom:12px;">
+      <span id="artistDeleteBtn" style="font-size:0.75rem; color:#ff453a; cursor:pointer;">🗑 刪除此藝人</span>
+    </div>
+    <div id="addArtistForm" style="display:none; background:#111; border-radius:10px; padding:12px 14px; margin-bottom:12px;">
+      <label>藝人名稱</label>
+      <input type="text" id="newArtistName" placeholder="例如：aespa" />
+      <label>人名對照表</label>
+      <div style="font-size:0.72rem; color:#555; margin-top:-2px; margin-bottom:6px;">格式：- 藝名 / 韓文 → 中文譯名，每行一個</div>
+      <textarea id="newArtistGlossary" style="width:100%; height:140px; padding:10px 12px; border-radius:10px; border:1px solid #333; background:#2c2c2e; color:#aaa; font-size:0.75rem; font-family:inherit; resize:vertical; outline:none; line-height:1.55; margin-bottom:8px;" placeholder="範例（以 MAMAMOO 為例）：
+- Solar / 솔라 → 頌樂
+- Moon Byul / 문별 → 玟星
+- Whee In / 휘인 → 輝人
+- Hwa Sa / 화사 → 華莎"></textarea>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="cancelAddArtist()" style="padding:6px 14px; border-radius:8px; border:1px solid #3a3a3c; background:transparent; color:#666; font-size:0.78rem; cursor:pointer;">取消</button>
+        <button onclick="saveNewArtist()" style="padding:6px 14px; border-radius:8px; border:none; background:#0a84ff; color:#fff; font-size:0.78rem; cursor:pointer;">儲存</button>
+      </div>
     </div>
     <div class="row">
       <div>
@@ -333,11 +354,8 @@
 <script type="module">
 import { GoogleGenAI } from 'https://esm.sh/@google/genai';
 
-const DEFAULT_SYS_PROMPT =
-`你是演唱會現場即時口譯員，負責將藝人說的話翻譯成台灣繁體中文。
-
-<artist_glossary>
-本場演唱會藝人名稱對照（翻譯時優先使用此表，不得自行改動）：
+const MAMAMOO_GLOSSARY =
+`本場演唱會藝人名稱對照（翻譯時優先使用此表，不得自行改動）：
 
 MAMAMOO 藝名：
 - Solar / 솔라 → 頌樂
@@ -349,7 +367,13 @@ MAMAMOO 本名：
 - 김용선 / Kim Yong-sun → 金容仙
 - 문별이 / Moon Byul-yi → 文星伊
 - 정휘인 / Jung Whee-in → 丁輝人
-- 안혜진 / Ahn Hye-jin → 安惠真
+- 안혜진 / Ahn Hye-jin → 安惠真`;
+
+const DEFAULT_SYS_PROMPT =
+`你是演唱會現場即時口譯員，負責將藝人說的話翻譯成台灣繁體中文。
+
+<artist_glossary>
+${MAMAMOO_GLOSSARY}
 </artist_glossary>
 
 <rules>
@@ -412,6 +436,70 @@ let isHotswapping     = false;
 let currentAi         = null;
 let currentConfig     = null;
 
+// ── Artist presets ────────────────────────────────────────────────────────
+function loadUserArtists() {
+  try { return JSON.parse(localStorage.getItem('user_artists') || '[]'); }
+  catch { return []; }
+}
+function saveUserArtists(arr) {
+  localStorage.setItem('user_artists', JSON.stringify(arr));
+}
+
+let lastArtistValue = '';
+
+function renderArtistSelect() {
+  const sel = document.getElementById('artistPreset');
+  const cur = sel.value;
+  sel.innerHTML = '';
+  const add = (text, val) => sel.add(new Option(text, val));
+  add('手動設定（不套用）', '');
+  add('MAMAMOO（內建）', '__MAMAMOO__');
+  loadUserArtists().forEach((a, i) => add(a.name, `__user_${i}__`));
+  add('＋ 新增藝人…', '__ADD__');
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+function applyArtistGlossary(glossary) {
+  const ta = document.getElementById('sysPrompt');
+  const next = ta.value.replace(
+    /<artist_glossary>[\s\S]*?<\/artist_glossary>/,
+    `<artist_glossary>\n${glossary}\n</artist_glossary>`
+  );
+  if (next === ta.value) {
+    alert('找不到 <artist_glossary> 標籤，請先按「↺ 重設為預設提示詞」，再重新選擇藝人。');
+    return;
+  }
+  ta.value = next;
+  localStorage.setItem('sys_prompt', next);
+}
+
+window.saveNewArtist = function() {
+  const name    = document.getElementById('newArtistName').value.trim();
+  const glossary = document.getElementById('newArtistGlossary').value.trim();
+  if (!name)     { alert('請填入藝人名稱'); return; }
+  if (!glossary) { alert('請填入人名對照表'); return; }
+  const users = loadUserArtists();
+  users.push({ name, glossary });
+  saveUserArtists(users);
+  document.getElementById('addArtistForm').style.display = 'none';
+  document.getElementById('newArtistName').value     = '';
+  document.getElementById('newArtistGlossary').value = '';
+  renderArtistSelect();
+  const newVal = `__user_${users.length - 1}__`;
+  const sel = document.getElementById('artistPreset');
+  sel.value = newVal;
+  lastArtistValue = newVal;
+  localStorage.setItem('selected_artist', newVal);
+  applyArtistGlossary(glossary);
+  document.getElementById('artistDeleteRow').style.display = 'block';
+};
+
+window.cancelAddArtist = function() {
+  document.getElementById('addArtistForm').style.display = 'none';
+  document.getElementById('newArtistName').value     = '';
+  document.getElementById('newArtistGlossary').value = '';
+};
+
 // ── Init ──────────────────────────────────────────────────────────────────
 // 強制重置 iOS 縮放（防止上次測試留下的放大狀態）
 {
@@ -452,6 +540,19 @@ window.onload = () => {
   histSize = Number(document.getElementById('displayLines').value);
   updateHistSlotVisibility();
   refreshSegDesc();
+
+  renderArtistSelect();
+  const savedArtist = localStorage.getItem('selected_artist') || '';
+  if (savedArtist) {
+    const sel = document.getElementById('artistPreset');
+    if ([...sel.options].some(o => o.value === savedArtist)) {
+      sel.value = savedArtist;
+      lastArtistValue = savedArtist;
+      if (savedArtist.startsWith('__user_')) {
+        document.getElementById('artistDeleteRow').style.display = 'block';
+      }
+    }
+  }
 };
 
 document.getElementById('apiKey').addEventListener('input', e =>
@@ -467,6 +568,11 @@ window.resetSysPrompt = function() {
   if (!confirm('確定要重設為預設提示詞？目前的修改將會清除。')) return;
   localStorage.removeItem('sys_prompt');
   document.getElementById('sysPrompt').value = DEFAULT_SYS_PROMPT;
+  const sel = document.getElementById('artistPreset');
+  sel.value = '__MAMAMOO__';
+  lastArtistValue = '__MAMAMOO__';
+  localStorage.setItem('selected_artist', '__MAMAMOO__');
+  document.getElementById('artistDeleteRow').style.display = 'none';
 };
 document.getElementById('aiSegment').addEventListener('change', () => {
   localStorage.setItem('ai_segment', document.getElementById('aiSegment').checked);
@@ -492,6 +598,41 @@ document.getElementById('displayLines').addEventListener('change', e => {
   localStorage.setItem('display_lines', e.target.value);
   histSize = Number(e.target.value);
   updateHistSlotVisibility();
+});
+
+document.getElementById('artistPreset').addEventListener('change', function() {
+  const val = this.value;
+  if (val === '__ADD__') {
+    this.value = lastArtistValue;
+    document.getElementById('addArtistForm').style.display = 'block';
+    return;
+  }
+  lastArtistValue = val;
+  localStorage.setItem('selected_artist', val);
+  const isUser = val.startsWith('__user_');
+  document.getElementById('artistDeleteRow').style.display = isUser ? 'block' : 'none';
+  if (val === '') return;
+  if (val === '__MAMAMOO__') { applyArtistGlossary(MAMAMOO_GLOSSARY); return; }
+  if (isUser) {
+    const idx = parseInt(val.replace('__user_', ''));
+    const a = loadUserArtists()[idx];
+    if (a) applyArtistGlossary(a.glossary);
+  }
+});
+
+document.getElementById('artistDeleteBtn').addEventListener('click', function() {
+  const val = document.getElementById('artistPreset').value;
+  if (!val.startsWith('__user_')) return;
+  if (!confirm('確定刪除這個藝人設定？')) return;
+  const idx = parseInt(val.replace('__user_', ''));
+  const users = loadUserArtists();
+  users.splice(idx, 1);
+  saveUserArtists(users);
+  document.getElementById('artistPreset').value = '';
+  lastArtistValue = '';
+  localStorage.setItem('selected_artist', '');
+  document.getElementById('artistDeleteRow').style.display = 'none';
+  renderArtistSelect();
 });
 
 // 回到前景時重新申請 Wake Lock
@@ -861,6 +1002,7 @@ window.startTranslation = async function() {
   document.getElementById('startBtn').style.display      = 'none';
   document.getElementById('stopBtn').style.display       = 'block';
   document.getElementById('downloadBtn').style.display   = 'none';
+  document.getElementById('artistPreset').disabled       = true;
   document.getElementById('captions').style.display      = 'block';
   setTimeout(() => document.getElementById('captions').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   document.getElementById('costLine').style.display      = 'block';
@@ -989,6 +1131,7 @@ window.stopTranslation = function() {
 
   document.getElementById('startBtn').style.display = 'block';
   document.getElementById('stopBtn').style.display  = 'none';
+  document.getElementById('artistPreset').disabled  = false;
 
   // 有逐字稿才顯示下載按鈕
   if (transcriptLog.length > 0) {

@@ -1135,6 +1135,49 @@ async function startMic() {
 
 // ── Stop ──────────────────────────────────────────────────────────────────
 // ── PiP 測試 ──────────────────────────────────────────────────────────────
+// 頁面載入時就預先建好 canvas + video 並開始播，
+// 這樣按鈕按下時 video 已是 playing，requestPictureInPicture() 能直接呼叫
+let _pipCtx = null;
+let _pipVideo = null;
+
+function _pipDrawFrame() {
+  if (!_pipCtx) return;
+  _pipCtx.fillStyle = '#111';
+  _pipCtx.fillRect(0, 0, 480, 160);
+  _pipCtx.fillStyle = '#ffffff';
+  _pipCtx.font = 'bold 38px -apple-system, sans-serif';
+  _pipCtx.textAlign = 'center';
+  _pipCtx.textBaseline = 'middle';
+  _pipCtx.fillText('翻譯測試文字', 240, 65);
+  _pipCtx.fillStyle = '#888888';
+  _pipCtx.font = '22px -apple-system, sans-serif';
+  _pipCtx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
+}
+
+function _initPipVideo() {
+  if (!('captureStream' in HTMLCanvasElement.prototype)) return;
+  if (!('requestPictureInPicture' in HTMLVideoElement.prototype)) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 480;
+  canvas.height = 160;
+  _pipCtx = canvas.getContext('2d');
+  _pipDrawFrame();
+
+  _pipVideo = document.createElement('video');
+  _pipVideo.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
+  _pipVideo.setAttribute('playsinline', '');
+  _pipVideo.muted = true;
+  _pipVideo.srcObject = canvas.captureStream(5);
+  document.body.appendChild(_pipVideo);
+
+  // muted + playsinline → iOS Safari 允許不需手勢直接 play
+  _pipVideo.play().catch(() => {});
+  setInterval(_pipDrawFrame, 250);
+}
+
+window.addEventListener('load', _initPipVideo);
+
 window.testPiP = function() {
   const resultEl = document.getElementById('pipResult');
   resultEl.style.display = 'block';
@@ -1151,48 +1194,15 @@ window.testPiP = function() {
     resultEl.textContent = '✗ 不支援：requestPictureInPicture() 此瀏覽器沒有，PiP 方案不可行';
     return;
   }
-
-  // 1. 建立 canvas，畫測試文字
-  const canvas = document.createElement('canvas');
-  canvas.width = 480;
-  canvas.height = 160;
-  const ctx = canvas.getContext('2d');
-
-  function drawFrame() {
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, 480, 160);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 38px -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('翻譯測試文字', 240, 65);
-    ctx.fillStyle = '#888888';
-    ctx.font = '22px -apple-system, sans-serif';
-    ctx.fillText(new Date().toLocaleTimeString('zh-TW'), 240, 115);
+  if (!_pipVideo) {
+    resultEl.style.color = '#ff453a';
+    resultEl.textContent = '✗ 初始化失敗，請重新整理頁面後再試';
+    return;
   }
-  drawFrame();
 
-  // 2. captureStream 接到隱藏 video
-  const stream = canvas.captureStream(5);
-
-  let video = document.getElementById('_pipTestVideo');
-  if (!video) {
-    video = document.createElement('video');
-    video.id = '_pipTestVideo';
-    video.style.cssText = 'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.01;pointer-events:none;';
-    video.setAttribute('playsinline', '');
-    video.muted = true;
-    document.body.appendChild(video);
-  }
-  video.srcObject = stream;
-
-  // 3+4. play() 和 requestPictureInPicture() 必須在同一個同步區塊呼叫，
-  //       不能 await play()，否則手勢鏈斷掉會 AbortError
-  video.play();
-  video.requestPictureInPicture()
+  // video 已在背景 playing，直接在手勢鏈內同步呼叫 requestPictureInPicture()
+  _pipVideo.requestPictureInPicture()
     .then(() => {
-      const frameTimer = setInterval(drawFrame, 250);
-      video.addEventListener('leavepictureinpicture', () => clearInterval(frameTimer), { once: true });
       resultEl.style.color = '#30d158';
       resultEl.textContent = '✅ 成功！canvas.captureStream() + PiP 可行，可以整合進翻譯功能';
     })

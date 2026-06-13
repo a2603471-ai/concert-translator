@@ -369,6 +369,20 @@ MAMAMOO 本名：
 - 정휘인 / Jung Whee-in → 丁輝人
 - 안혜진 / Ahn Hye-jin → 安惠真`;
 
+const SUPERJUNIOR_GLOSSARY =
+`本場演唱會藝人名稱對照（翻譯時優先使用此表，不得自行改動）：
+
+Super Junior 藝名／本名：
+- Leeteuk / 이특 → 利特
+- Heechul / 희철 → 希澈
+- Yesung / 예성 → 藝聲
+- Shindong / 신동 → 神童
+- Eunhyuk / 은혁 → 銀赫
+- Donghae / 동해 → 東海
+- Siwon / 시원 → 始源
+- Ryeowook / 려욱 → 厲旭
+- Kyuhyun / 규현 → 圭賢`;
+
 const DEFAULT_SYS_PROMPT =
 `你是演唱會現場即時口譯員，負責將藝人說的話翻譯成台灣繁體中文。
 
@@ -453,6 +467,7 @@ function renderArtistSelect() {
   sel.innerHTML = '';
   const add = (text, val) => sel.add(new Option(text, val));
   add('MAMAMOO（預設）', '__MAMAMOO__');
+  add('Super Junior（內建）', '__SUPERJUNIOR__');
   loadUserArtists().forEach((a, i) => add(a.name, `__user_${i}__`));
   add('＋ 新增藝人…', '__ADD__');
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
@@ -611,6 +626,7 @@ document.getElementById('artistPreset').addEventListener('change', function() {
   const isUser = val.startsWith('__user_');
   document.getElementById('artistDeleteRow').style.display = isUser ? 'block' : 'none';
   if (val === '__MAMAMOO__') { applyArtistGlossary(MAMAMOO_GLOSSARY); return; }
+  if (val === '__SUPERJUNIOR__') { applyArtistGlossary(SUPERJUNIOR_GLOSSARY); return; }
   if (isUser) {
     const idx = parseInt(val.replace('__user_', ''));
     const a = loadUserArtists()[idx];

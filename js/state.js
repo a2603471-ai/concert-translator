@@ -14,6 +14,10 @@ export const S = {
   sessionStart:      0,
   totalInputTok:     0,
   totalOutputTok:    0,
+  tokBaseIn:         0,   // 之前各條連線的 token 合計
+  tokBaseOut:        0,
+  connInTok:         0,   // 目前這條連線的 token
+  connOutTok:        0,
   origBuffer:        '',
   transBuffer:       '',
   segFlushTimer:     null,
@@ -35,11 +39,21 @@ export const S = {
 
   // 逐字稿、熱切換
   transcriptLog:     [],   // { time, orig, trans }
+  transcriptDate:    '',
+  modelKey:          'translate',   // 'translate' 或備援 'live'，見 config.js MODELS
   hotswapTimer:      null,
   hotswapIntervalMs: 0,
-  isHotswapping:     false,
   currentAi:         null,
   currentConfig:     null,
+
+  // 斷線自動接回
+  connId:            0,      // 目前有效的連線編號
+  setupOk:           false,  // 這條連線是否已完成設定
+  everConnected:     false,  // 本次翻譯是否至少成功接上過一次
+  extendedOff:       false,  // 模型不支援延長對話設定時改 true
+  resumeHandle:      null,   // 伺服器給的接續碼
+  reconnectAttempts: 0,
+  lastErrorMsg:      '',
 
   lastArtistValue: '__MAMAMOO__',
 };

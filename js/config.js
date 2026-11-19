@@ -48,12 +48,26 @@ ${MAMAMOO_GLOSSARY}
 9. 多人同時說話時，翻譯能辨識出的內容，其餘略過；不需標示說話者身份。
 </rules>`;
 
-export const RATE_INPUT_PER_M       = 3.50;
-export const RATE_OUTPUT_PER_M      = 21.00;
-export const RATE_AUDIO_PER_MIN_USD = 0.0368;
-export const USD_TWD                = 32;
+// 翻譯模型（費率來源：ai.google.dev/gemini-api/docs/pricing，2026-11-19 查證；USD／每百萬 token）
+// translate：翻譯專用（預覽版）；live：通用正式版，預覽版不能用時的備援，靠提示詞翻譯
+export const MODELS = {
+  translate: { id: 'gemini-3.5-live-translate-preview', inPerM: 3.50, outPerM: 21.00, perMinUsd: 0.0368 },
+  live:      { id: 'gemini-3.8-live',                   inPerM: 3.00, outPerM: 12.00, perMinUsd: 0.023  },
+};
+export const GLOSSARY_MODEL = 'gemini-3.8-flash';   // AI 產生人名對照表用的文字模型
+export const USD_TWD        = 32;
 export const STABLE_FLUSH_MS        = 1600;
 export const PUNCT_FLUSH_MS         = 700;
 export const CAPTION_HISTORY_VERSION = '3';
 export const MAX_HIST_SIZE = 5;
-export const LIVE_MODEL = 'gemini-3.5-live-translate-preview';
+
+export const LANG_NAMES = { 'zh-Hant': '台灣繁體中文', en: '英文', ja: '日文' };
+
+// 備援模型沒有翻譯專用設定，要在提示詞最前面講清楚「只翻譯、不對話」
+export const BACKUP_MODEL_PREFIX = target =>
+`你現在是同步口譯機，不是聊天助理：
+- 把聽到的每一句話直接翻譯成${LANG_NAMES[target] || target}並說出來
+- 只說翻譯內容，絕對不要回答問題、不要跟說話的人對話、不要加評論
+- 聽到音樂、歡呼或聽不清楚時保持安靜
+
+`;

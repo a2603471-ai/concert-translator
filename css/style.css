@@ -113,29 +113,51 @@
     .captions { background: #1c1c1e; border-radius: 16px; padding: 20px 18px; margin-top: 14px; }
     .cap-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; }
 
-    /* 字幕歷史（最多 5 段，舊→新由上到下） */
-    .hist-orig    { font-size: 0.72rem; color: #2e2e30; line-height: 1.5; word-break: break-all; }
-    .hist-orig.h2 { font-size: 0.77rem; color: #3a3a3c; }
-    .hist-orig.h1 { font-size: 0.82rem; color: #444;    margin-bottom: 4px; }
-    .hist-orig.h4 { font-size: 0.69rem; color: #252527; }
-    .hist-orig.h5 { font-size: 0.66rem; color: #1e1e20; }
-    .hist-trans    { font-size: 0.95rem; color: #2e2e30; line-height: 1.45; word-break: break-all; }
-    .hist-trans.h2 { font-size: 1.05rem; color: #3a3a3c; }
-    .hist-trans.h1 { font-size: 1.25rem; color: #666;    margin-bottom: 14px; }
-    .hist-trans.h4 { font-size: 0.85rem; color: #252527; }
-    .hist-trans.h5 { font-size: 0.78rem; color: #1e1e20; }
+    /* 字幕歷史（最多 5 段，舊→新由上到下）
+       --cap-scale：字幕縮放倍率，由 A−／A＋ 調整
+       顏色：舊版最暗一段 #1e1e20 幾乎和底色 #1c1c1e 一樣，現場看不到，改成越舊越暗但仍可讀 */
+    :root { --cap-scale: 1; }
+    .hist-orig    { font-size: calc(0.72rem * var(--cap-scale)); color: #5a5a5e; line-height: 1.5; word-break: break-all; }
+    .hist-orig.h2 { font-size: calc(0.77rem * var(--cap-scale)); color: #6a6a6e; }
+    .hist-orig.h1 { font-size: calc(0.82rem * var(--cap-scale)); color: #7a7a7e; margin-bottom: 4px; }
+    .hist-orig.h4 { font-size: calc(0.69rem * var(--cap-scale)); color: #4e4e52; }
+    .hist-orig.h5 { font-size: calc(0.66rem * var(--cap-scale)); color: #444448; }
+    .hist-trans    { font-size: calc(0.95rem * var(--cap-scale)); color: #707074; line-height: 1.45; word-break: break-all; }
+    .hist-trans.h2 { font-size: calc(1.05rem * var(--cap-scale)); color: #88888c; }
+    .hist-trans.h1 { font-size: calc(1.25rem * var(--cap-scale)); color: #a8a8ac; margin-bottom: 14px; }
+    .hist-trans.h4 { font-size: calc(0.85rem * var(--cap-scale)); color: #5e5e62; }
+    .hist-trans.h5 { font-size: calc(0.78rem * var(--cap-scale)); color: #505054; }
 
     /* 目前句 */
     .original-text {
-      font-size: 1rem; color: #888; min-height: 28px;
+      font-size: calc(1rem * var(--cap-scale)); color: #888; min-height: 28px;
       line-height: 1.55; margin-bottom: 20px; word-break: break-all; transition: opacity 0.2s;
     }
     .translated-text {
-      font-size: 1.8rem; color: #fff; line-height: 1.45;
+      font-size: calc(1.8rem * var(--cap-scale)); color: #fff; line-height: 1.45;
       min-height: 54px; font-weight: 500; word-break: break-all; transition: opacity 0.2s;
     }
     .translated-text.partial { opacity: 0.45; }
     .original-text.partial   { opacity: 0.55; }
+
+    /* 字幕工具列 */
+    .cap-toolbar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 12px; }
+    .cap-tool {
+      padding: 6px 12px; border-radius: 8px; border: 1px solid #3a3a3c;
+      background: transparent; color: #aaa; font-size: 0.85rem; cursor: pointer;
+    }
+    .cap-tool:active { color: #fff; border-color: #888; }
+    .captions.hide-orig #origBlock { display: none; }
+
+    /* 翻譯中：收起設定，字幕佔滿畫面 */
+    body.live h1, body.live .card, body.live .advanced-section, body.live .tip { display: none; }
+    body.live .btn-stop { padding: 10px; font-size: 1rem; }
+    body.live .captions {
+      min-height: calc(100vh - 170px);
+      min-height: calc(100dvh - 170px);   /* iPhone：扣掉瀏覽器工具列，最新一句才不會被擋住 */
+      display: flex !important; flex-direction: column; justify-content: flex-end;
+    }
+    body.live .cap-toolbar { margin-bottom: auto; padding-bottom: 12px; }
 
     .tip { background: #1c1c1e; border-radius: 12px; padding: 12px 14px; margin-top: 14px; font-size: 0.82rem; color: #666; line-height: 1.6; }
     .tip strong { color: #888; }

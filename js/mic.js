@@ -1,6 +1,6 @@
 // 麥克風：收音 → 轉成 16kHz PCM → 送給 Gemini
 
-import { S, $ } from './state.js';
+import { S, $, showError } from './state.js?v=10';
 
 function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
 
@@ -50,6 +50,19 @@ export async function startMic() {
 
   source.connect(S.processor);
   S.processor.connect(S.audioContext.destination);
+}
+
+// iPhone 鎖屏、切 App、來電後，系統會暫停錄音或結束麥克風音軌；
+// 連線接回時呼叫這裡，暫停的叫醒、結束的重開，避免「畫面顯示翻譯中但其實沒收音」
+export async function ensureMic() {
+  if (!S.running || !S.micStream) return;
+  const ended = S.micStream.getTracks?.().some(t => t.readyState === 'ended');
+  try {
+    if (ended) { stopMic(); await startMic(); return; }
+    if (S.audioContext && S.audioContext.state !== 'running') await S.audioContext.resume();
+  } catch (err) {
+    showError('麥克風恢復失敗，請按停止再重新開始：' + err.message);
+  }
 }
 
 export function stopMic() {

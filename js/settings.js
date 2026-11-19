@@ -1,8 +1,8 @@
 // 設定畫面：讀寫 localStorage、藝人快速設定、折疊區塊
 
-import { S, $ } from './state.js';
-import { MAMAMOO_GLOSSARY, SUPERJUNIOR_GLOSSARY, DEFAULT_SYS_PROMPT, CAPTION_HISTORY_VERSION } from './config.js';
-import { updateHistSlotVisibility } from './captions.js';
+import { S, $ } from './state.js?v=10';
+import { MAMAMOO_GLOSSARY, SUPERJUNIOR_GLOSSARY, DEFAULT_SYS_PROMPT, CAPTION_HISTORY_VERSION } from './config.js?v=10';
+import { updateHistSlotVisibility } from './captions.js?v=10';
 
 // ── Artist presets ────────────────────────────────────────────────────────
 function loadUserArtists() {
@@ -102,6 +102,8 @@ export function initSettings() {
   if (savedSrcLang      != null) $('sourceLang').value = savedSrcLang;
   if (savedHotswap      != null) $('hotswapInterval').value = savedHotswap;
   if (savedDisplayLines != null) $('displayLines').value = savedDisplayLines;
+  const savedModel = localStorage.getItem('model_choice');
+  if (savedModel != null) $('modelChoice').value = savedModel;
   S.histSize = Number($('displayLines').value);
   updateHistSlotVisibility();
   refreshSegDesc();
@@ -152,6 +154,7 @@ persist('costLimit',        'cost_limit_twd');
 persist('captionHold',      'caption_hold_sec');
 persist('sourceLang',       'source_lang');
 persist('hotswapInterval',  'hotswap_interval');
+persist('modelChoice',      'model_choice');
 $('displayLines').addEventListener('change', e => {
   localStorage.setItem('display_lines', e.target.value);
   S.histSize = Number(e.target.value);

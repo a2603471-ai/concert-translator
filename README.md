@@ -12,7 +12,10 @@
 | `index.html` | 畫面元素 |
 | `css/style.css` | 樣式 |
 | `js/main.js` | 進入點：開始／停止翻譯 |
-| `js/session.js` | Gemini Live 連線、收訊息、費用計算、重連 |
+| `js/connection.js` | 建立 Gemini Live 連線、斷線自動接回、熱切換 |
+| `js/session.js` | 收伺服器訊息、費用計算、狀態燈號、防螢幕熄滅 |
+| `js/glossary-ai.js` | AI 自動產生藝人人名對照表 |
+| `tools/bump_version.py` | 統一更新快取版本號 |
 | `js/mic.js` | 麥克風收音與轉檔 |
 | `js/captions.js` | 字幕顯示、逐字稿 |
 | `js/settings.js` | 設定畫面、藝人快速設定 |
@@ -22,7 +25,9 @@
 ## 部署
 
 靜態頁面，GitHub Pages 直接讀 `index.html`，`git push` 後幾分鐘內自動更新。
-改了 css／js 時，把 `index.html` 裡 `?v=` 後面的數字加 1，避免手機讀到舊的快取檔。
+改了 css／js 時，推上去前執行 `python tools/bump_version.py <新數字>`（目前是 10），
+一次把 `index.html` 和 js 檔裡所有 `?v=` 版本號換新，避免手機讀到「新舊混雜」的快取檔而整頁打不開。
+**不要手動只改其中幾個**：同一個 js 檔的引用路徑必須一字不差，否則瀏覽器會把它載入兩次。
 
 ## 本機測試
 

@@ -1,13 +1,72 @@
 // 字幕顯示：目前句、歷史佇列、分句收句、逐字稿紀錄與下載
 
-import { S, $ } from './state.js';
-import { STABLE_FLUSH_MS, PUNCT_FLUSH_MS, MAX_HIST_SIZE } from './config.js';
+import { S, $ } from './state.js?v=10';
+import { STABLE_FLUSH_MS, PUNCT_FLUSH_MS, MAX_HIST_SIZE } from './config.js?v=10';
 
 const nowTime = () =>
   new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+// ── 逐字稿（每記一段就暫存到瀏覽器，當機或誤關網頁也救得回來）────────────
+const AUTOSAVE_KEY = 'transcript_autosave';
+
 export function logTranscript(orig, trans) {
   S.transcriptLog.push({ time: nowTime(), orig, trans });
+  saveTranscript(false);
+}
+
+function saveTranscript(downloaded) {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+      date: S.transcriptDate || new Date().toLocaleDateString('zh-TW'),
+      downloaded,
+      entries: S.transcriptLog,
+    }));
+  } catch (_) {}   // 容量滿或無痕模式：暫存失敗不影響翻譯
+}
+
+// 讀回上次「還沒下載」的逐字稿；沒有就回傳 null
+export function loadUnsavedTranscript() {
+  try {
+    const d = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || 'null');
+    return (d && !d.downloaded && d.entries?.length) ? d : null;
+  } catch { return null; }
+}
+
+// 停止時把畫面上還沒收進逐字稿的最後一句補記
+export function logPendingCaption() {
+  if ($('aiSegment').checked) {
+    clearTimeout(S.segFlushTimer); S.segFlushTimer = null;
+    flushSegment();
+  } else if (S.lastImmediateTranslated) {
+    logTranscript(S.lastImmediateOriginal, S.lastImmediateTranslated);
+    S.lastImmediateTranslated = '';
+  }
+}
+
+// ── 字幕大小、隱藏原文 ────────────────────────────────────────────────────
+const SCALE_MIN = 0.8, SCALE_MAX = 2.0;
+
+function applyCapScale(v) {
+  document.documentElement.style.setProperty('--cap-scale', v);
+}
+window.changeCapScale = function(dir) {
+  const cur  = Number(localStorage.getItem('cap_scale') || 1);
+  const next = Math.min(SCALE_MAX, Math.max(SCALE_MIN, Math.round((cur + dir * 0.1) * 10) / 10));
+  localStorage.setItem('cap_scale', next);
+  applyCapScale(next);
+};
+function applyHideOrig(hide) {
+  $('captions').classList.toggle('hide-orig', hide);
+  $('origToggleBtn').textContent = hide ? '顯示原文' : '隱藏原文';
+}
+window.toggleOriginal = function() {
+  const hide = !$('captions').classList.contains('hide-orig');
+  localStorage.setItem('hide_original', hide);
+  applyHideOrig(hide);
+};
+export function initCaptionPrefs() {
+  applyCapScale(Number(localStorage.getItem('cap_scale') || 1));
+  applyHideOrig(localStorage.getItem('hide_original') === 'true');
 }
 
 // ── Segment flush ─────────────────────────────────────────────────────────
@@ -119,7 +178,7 @@ export function updateImmediateCaption(type, nextText) {
 // ── 下載逐字稿 ────────────────────────────────────────────────────────────
 window.downloadTranscript = function() {
   if (S.transcriptLog.length === 0) return;
-  const date = new Date().toLocaleDateString('zh-TW');
+  const date = S.transcriptDate || new Date().toLocaleDateString('zh-TW');
   const lines = [`演唱會即時翻譯逐字稿`, `日期：${date}`, `共 ${S.transcriptLog.length} 段`, '', ''];
   for (const entry of S.transcriptLog) {
     lines.push(`[${entry.time}]`);
@@ -134,4 +193,5 @@ window.downloadTranscript = function() {
   a.download = `逐字稿_${date.replace(/\//g, '-')}.txt`;
   a.click();
   URL.revokeObjectURL(url);
+  saveTranscript(true);
 };

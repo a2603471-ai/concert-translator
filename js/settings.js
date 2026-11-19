@@ -1,8 +1,8 @@
 // 設定畫面：讀寫 localStorage、藝人快速設定、折疊區塊
 
-import { S, $ } from './state.js?v=10';
-import { MAMAMOO_GLOSSARY, SUPERJUNIOR_GLOSSARY, DEFAULT_SYS_PROMPT, CAPTION_HISTORY_VERSION } from './config.js?v=10';
-import { updateHistSlotVisibility } from './captions.js?v=10';
+import { S, $ } from './state.js?v=11';
+import { MAMAMOO_GLOSSARY, SUPERJUNIOR_GLOSSARY, DEFAULT_SYS_PROMPT, CAPTION_HISTORY_VERSION } from './config.js?v=11';
+import { updateHistSlotVisibility } from './captions.js?v=11';
 
 // ── Artist presets ────────────────────────────────────────────────────────
 function loadUserArtists() {

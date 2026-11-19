@@ -1,7 +1,7 @@
 // 字幕顯示：目前句、歷史佇列、分句收句、逐字稿紀錄與下載
 
-import { S, $ } from './state.js?v=10';
-import { STABLE_FLUSH_MS, PUNCT_FLUSH_MS, MAX_HIST_SIZE } from './config.js?v=10';
+import { S, $ } from './state.js?v=11';
+import { STABLE_FLUSH_MS, PUNCT_FLUSH_MS, MAX_HIST_SIZE } from './config.js?v=11';
 
 const nowTime = () =>
   new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });

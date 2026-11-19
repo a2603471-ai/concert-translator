@@ -1,14 +1,14 @@
 // 進入點：開始／停止翻譯
 
 import { GoogleGenAI } from 'https://esm.sh/@google/genai@2.32.0';
-import { S, $, setStatus, showError, hideError } from './state.js?v=10';
-import { BACKUP_MODEL_PREFIX } from './config.js?v=10';
-import './glossary-ai.js?v=10';
-import { initSettings } from './settings.js?v=10';
-import { clearAllHistory, initCaptionPrefs, loadUnsavedTranscript, logPendingCaption } from './captions.js?v=10';
-import { startTimer, stopTimer, requestWakeLock, releaseWakeLock } from './session.js?v=10';
-import { connectSession, hotswapReconnect } from './connection.js?v=10';
-import { stopMic } from './mic.js?v=10';
+import { S, $, setStatus, showError, hideError } from './state.js?v=11';
+import { BACKUP_MODEL_PREFIX } from './config.js?v=11';
+import './glossary-ai.js?v=11';
+import { initSettings } from './settings.js?v=11';
+import { clearAllHistory, initCaptionPrefs, loadUnsavedTranscript, logPendingCaption } from './captions.js?v=11';
+import { startTimer, stopTimer, requestWakeLock, releaseWakeLock } from './session.js?v=11';
+import { connectSession, hotswapReconnect } from './connection.js?v=11';
+import { stopMic } from './mic.js?v=11';
 
 function showDownloadBtn(label) {
   $('downloadBtn').style.display = 'block';

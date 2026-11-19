@@ -1,10 +1,10 @@
 // 翻譯進行中：處理伺服器訊息、費用計算、狀態燈號、防螢幕熄滅
 // （建立連線與斷線重連在 connection.js）
 
-import { S, $, setStatus, showError } from './state.js?v=10';
-import { MODELS, USD_TWD } from './config.js?v=10';
-import { isPunctEnd, scheduleSegmentFlush, flushSegment, updateImmediateCaption } from './captions.js?v=10';
-import { ensureMic } from './mic.js?v=10';
+import { S, $, setStatus, showError } from './state.js?v=11';
+import { MODELS, USD_TWD } from './config.js?v=11';
+import { isPunctEnd, scheduleSegmentFlush, flushSegment, updateImmediateCaption } from './captions.js?v=11';
+import { ensureMic } from './mic.js?v=11';
 
 // ── 狀態燈號 ──────────────────────────────────────────────────────────────
 function updateStatusLights() {

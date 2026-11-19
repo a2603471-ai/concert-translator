@@ -2,8 +2,8 @@
 // 產生結果只填進輸入框，使用者核對、修改後按「儲存」才會生效
 
 import { GoogleGenAI } from 'https://esm.sh/@google/genai@2.32.0';
-import { $ } from './state.js?v=10';
-import { GLOSSARY_MODEL } from './config.js?v=10';
+import { $ } from './state.js?v=11';
+import { GLOSSARY_MODELS } from './config.js?v=11';
 
 const buildPrompt = name =>
 `請列出藝人／團體「${name}」的成員人名對照表，給演唱會即時翻譯使用。
@@ -18,6 +18,30 @@ const buildPrompt = name =>
 - 只輸出對照表本身，不要任何說明、開場白或 Markdown 標記
 - 如果你不認識這位藝人，只輸出：查無此藝人`;
 
+// 模型忙碌（503）或額度暫滿（429）是 Google 端暫時性問題：
+// 同一個模型等一下再試一次，還不行就換下一個備用模型
+const isBusy = err => /\b(503|429)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand/i.test(err?.message || '');
+const isMissing = err => /\b404\b|NOT_FOUND/i.test(err?.message || '');   // 模型已下架
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+export async function generateWithFallback(ai, contents, note) {
+  let lastErr;
+  for (const [i, model] of GLOSSARY_MODELS.entries()) {
+    if (i > 0) note.textContent = `主要模型忙碌，改用備用模型（${i}/${GLOSSARY_MODELS.length - 1}）…`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await ai.models.generateContent({ model, contents });
+      } catch (err) {
+        lastErr = err;
+        if (isMissing(err)) break;        // 換下一個模型
+        if (!isBusy(err)) throw err;      // Key 錯、格式錯：重試也沒用
+        if (attempt === 0) await sleep(1500);
+      }
+    }
+  }
+  throw lastErr;
+}
+
 window.generateGlossary = async function() {
   const name   = $('newArtistName').value.trim();
   const apiKey = $('apiKey').value.trim();
@@ -31,8 +55,8 @@ window.generateGlossary = async function() {
   btn.disabled = true;
   btn.textContent = '⏳ 產生中…';
   try {
-    const ai  = new GoogleGenAI({ apiKey });
-    const res = await ai.models.generateContent({ model: GLOSSARY_MODEL, contents: buildPrompt(name) });
+    const ai   = new GoogleGenAI({ apiKey });
+    const res  = await generateWithFallback(ai, buildPrompt(name), note);
     const text = (res.text || '').trim();
     if (!text || text.includes('查無此藝人')) {
       note.textContent = `AI 不認識「${name}」，請手動填寫對照表`;
@@ -41,7 +65,9 @@ window.generateGlossary = async function() {
     $('newArtistGlossary').value = text;
     note.textContent = '✅ 已產生。AI 可能寫錯譯名，請逐行核對（標「待確認」的特別注意），沒問題再按儲存';
   } catch (err) {
-    note.textContent = '產生失敗：' + err.message;
+    note.textContent = isBusy(err)
+      ? 'Google 的 AI 模型目前都很忙，請過幾分鐘再按一次，或先手動填寫'
+      : '產生失敗：' + err.message;
   } finally {
     btn.disabled = false;
     btn.textContent = '✨ 用 AI 自動產生人名對照表';

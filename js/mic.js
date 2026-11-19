@@ -1,6 +1,6 @@
 // 麥克風：收音 → 轉成 16kHz PCM → 送給 Gemini
 
-import { S, $, showError } from './state.js?v=10';
+import { S, $, showError } from './state.js?v=11';
 
 function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
 

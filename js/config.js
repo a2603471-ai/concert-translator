@@ -54,7 +54,9 @@ export const MODELS = {
   translate: { id: 'gemini-3.5-live-translate-preview', inPerM: 3.50, outPerM: 21.00, perMinUsd: 0.0368 },
   live:      { id: 'gemini-3.8-live',                   inPerM: 3.00, outPerM: 12.00, perMinUsd: 0.023  },
 };
-export const GLOSSARY_MODEL = 'gemini-3.8-flash';   // AI 產生人名對照表用的文字模型
+// AI 產生人名對照表用的文字模型：依序嘗試，前面的忙碌或下架就換下一個
+// （2026-11-19 官方模型頁皆為正式版）
+export const GLOSSARY_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 export const USD_TWD        = 32;
 export const STABLE_FLUSH_MS        = 1600;
 export const PUNCT_FLUSH_MS         = 700;

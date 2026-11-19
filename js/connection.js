@@ -7,10 +7,10 @@
 // 舊連線事後才送來的訊息、斷線通知、或晚一步才接通，一律忽略並關掉，
 // 避免「新連線已接上，舊連線又把它蓋掉／把翻譯停掉」。
 
-import { S, setStatus, showError } from './state.js?v=11';
-import { MODELS } from './config.js?v=11';
-import { handleMessage } from './session.js?v=11';
-import { startMic, ensureMic } from './mic.js?v=11';
+import { S, setStatus, showError } from './state.js?v=12';
+import { MODELS } from './config.js?v=12';
+import { handleMessage } from './session.js?v=12';
+import { startMic, ensureMic } from './mic.js?v=12';
 
 const MAX_RECONNECT    = 10;      // 連續失敗幾次才放棄（約 1 分鐘）
 const SETUP_TIMEOUT_MS = 15000;   // 連線打開後超過這麼久還沒完成設定，視為斷線
